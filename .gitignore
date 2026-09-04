@@ -1,0 +1,32 @@
+﻿# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+
+# PyInstaller / Build artifacts
+build/
+dist/
+*.spec
+
+# Log files
+*.log
+addin_debug.log
+
+# C# / Visual Studio Build files
+addin/bin/
+addin/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Output / Temp directories
+tests/output/
+*.tmp
+*.temp
+
+# OS / Editor files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
