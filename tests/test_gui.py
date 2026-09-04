@@ -34,6 +34,27 @@ class TestBOMManagerGUI(unittest.TestCase):
         # Edit a cell in table (Material is col 4 on row 1)
         window.table_widget.item(1, 4).setText("SUS")
         self.assertTrue(window.table_widget.bom_items[1].is_modified)
+        # Verify modified cell background is amber
+        mat_cell = window.table_widget.item(1, 4)
+        self.assertEqual(mat_cell.background().color().name().upper(), "#FEF3C7")
+
+        # Edit Part Name on row 1 (level 1) using delegate logic
+        from PySide6.QtWidgets import QLineEdit
+        from PySide6.QtCore import QModelIndex
+        editor = window.table_widget.part_name_delegate.createEditor(window.table_widget, None, window.table_widget.model().index(1, 3))
+        window.table_widget.part_name_delegate.setEditorData(editor, window.table_widget.model().index(1, 3))
+        self.assertEqual(editor.text(), "BASE_FRAME", "Editor must contain pure part name without '    └  ' prefix")
+        editor.setText("BASE_FRAME_NEW")
+        window.table_widget.part_name_delegate.setModelData(editor, window.table_widget.model(), window.table_widget.model().index(1, 3))
+        self.assertEqual(window.table_widget.item(1, 3).text(), "    └  BASE_FRAME_NEW")
+        self.assertEqual(window.table_widget.bom_items[1].part_name, "BASE_FRAME_NEW")
+        self.assertEqual(window.table_widget.item(1, 3).background().color().name().upper(), "#FEF3C7")
+
+        # Simulate Apply (save) -> background should return to default
+        window.sw_connector.apply_properties_to_solidworks([window.table_widget.bom_items[1]])
+        window.table_widget.load_items(window.table_widget.bom_items)
+        self.assertFalse(window.table_widget.bom_items[1].is_modified)
+        self.assertEqual(window.table_widget.item(1, 4).background().color().name().upper(), "#000000" if window.table_widget.item(1, 4).background().style().name == "NoBrush" else window.table_widget.item(1, 4).background().color().name().upper())
 
         # Filter test
         window.table_widget.filter_items("SHAFT")

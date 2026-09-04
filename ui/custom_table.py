@@ -70,9 +70,13 @@ class CenteredCheckBoxDelegate(QStyledItemDelegate):
         super().__init__(parent)
 
     def paint(self, painter: QPainter, option, index: QModelIndex):
-        # 배경 그리기 (선택 상태 등)
         self.initStyleOption(option, index)
-        QApplication.style().drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter)
+        # 배경색(BackgroundRole)이 지정되어 있으면 직접 채우기
+        bg_brush = index.data(Qt.BackgroundRole)
+        if bg_brush:
+            painter.fillRect(option.rect, bg_brush)
+        else:
+            QApplication.style().drawPrimitive(QStyle.PE_PanelItemViewItem, option, painter)
 
         # 체크 상태 확인
         checked = index.data(Qt.UserRole)
@@ -151,6 +155,57 @@ class QtySpinBoxDelegate(QStyledItemDelegate):
         model.setData(index, str(editor.value()), Qt.EditRole)
 
 
+class PartNameItemDelegate(QStyledItemDelegate):
+    """'Name of Part' 컬럼 편집 시 '└  ' 기호 및 들여쓰기 없이 순수 파트명만 편집창에 띄우는 델리게이트"""
+
+    def __init__(self, table_widget: 'BOMTableWidget', parent=None):
+        super().__init__(parent)
+        self.table_widget = table_widget
+
+    def createEditor(self, parent, option, index):
+        editor = QLineEdit(parent)
+        editor.setStyleSheet(
+            "font-size: 13px; padding: 2px 6px; font-weight: bold; "
+            "background-color: #FFFFFF; color: #0F172A; border: 1.5px solid #0284C7; border-radius: 3px;"
+        )
+        return editor
+
+    def setEditorData(self, editor: QLineEdit, index: QModelIndex):
+        row = index.row()
+        if 0 <= row < len(self.table_widget.bom_items):
+            item = self.table_widget.bom_items[row]
+            # 순수 파트명만 에디터에 로드 (앞의 '    └  ' 등 접두사 제외)
+            editor.setText(item.part_name)
+        else:
+            val = index.model().data(index, Qt.DisplayRole) or ""
+            clean_val = re.sub(r'^[└ㄴ├│┕╰┌\s─\-]+', '', val).strip()
+            editor.setText(clean_val)
+        editor.selectAll()
+
+    def setModelData(self, editor: QLineEdit, model, index: QModelIndex):
+        row = index.row()
+        raw_val = editor.text().strip()
+        clean_val = re.sub(r'^[└ㄴ├│┕╰┌\s─\-]+', '', raw_val).strip()
+        if clean_val.startswith("[Sub.]"):
+            clean_val = clean_val[6:].strip()
+        if clean_val.startswith("[Assy.]"):
+            clean_val = clean_val[7:].strip()
+        if clean_val.startswith("🏷️"):
+            clean_val = clean_val[2:].strip()
+
+        if 0 <= row < len(self.table_widget.bom_items):
+            item = self.table_widget.bom_items[row]
+            item.part_name = clean_val
+            level = getattr(item, "level", 0)
+            if level > 0:
+                formatted = f"{'    ' * level}└  {clean_val}"
+            else:
+                formatted = clean_val
+            model.setData(index, formatted, Qt.EditRole)
+        else:
+            model.setData(index, clean_val, Qt.EditRole)
+
+
 class BOMTableWidget(QTableWidget):
     """BOM 데이터를 표시하고 실시간 편집 및 화면 표시(Isolate)를 지원하는 메인 테이블 위젯"""
 
@@ -181,6 +236,9 @@ class BOMTableWidget(QTableWidget):
         self.common_delegate = CenteredCheckBoxDelegate(self)
         self.common_delegate.toggled.connect(self._on_common_toggled)
         self.setItemDelegateForColumn(COL_COMMON, self.common_delegate)
+
+        self.part_name_delegate = PartNameItemDelegate(self, self)
+        self.setItemDelegateForColumn(COL_PART_NAME, self.part_name_delegate)
 
         self.material_delegate = MaterialComboBoxDelegate(self)
         self.qty_delegate = QtySpinBoxDelegate(self)
@@ -370,26 +428,52 @@ class BOMTableWidget(QTableWidget):
         self._update_statistics()
 
     def _update_row_style(self, row: int, item: BOMItem):
-        """수정된 행에 시각적 하이라이트 부여 (SolidWorks Light 테마)"""
+        """수정된 셀과 행에 시각적 하이라이트(배경색 및 텍스트 강조) 부여 (SolidWorks Light 테마)"""
         is_mod = item.check_modified()
+        
+        # 1. No. 컬럼 스타일 (행 전체 수정 여부 인디케이터)
         no_item = self.item(row, COL_NO)
         if no_item:
             if is_mod:
                 no_item.setText(f"*{item.item_no}")
                 no_item.setForeground(QBrush(QColor("#D97706"))) # Amber indicator
                 no_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+                no_item.setBackground(QBrush(QColor("#FEF3C7"))) # Soft warm amber
             else:
                 no_item.setText(str(item.item_no))
                 no_item.setForeground(QBrush(QColor("#64748B")))
                 no_item.setFont(QFont("Segoe UI", 9))
+                no_item.setBackground(QBrush())
 
-        for c in [COL_PART_NAME, COL_MATERIAL, COL_QTY, COL_REV, COL_REMARK]:
+        # 2. Common Part 컬럼 배경
+        common_item = self.item(row, COL_COMMON)
+        if common_item:
+            is_common_mod = (item.is_common_part != item.original_is_common_part)
+            if is_common_mod:
+                common_item.setBackground(QBrush(QColor("#FEF3C7")))
+            else:
+                common_item.setBackground(QBrush())
+
+        # 3. 개별 데이터 컬럼들 (수정 여부별 개별 셀 배경색 및 글자색 적용)
+        col_mod_map = {
+            COL_PART_NAME: (item.part_name != item.original_part_name),
+            COL_MATERIAL: (item.material != item.original_material),
+            COL_QTY: (item.qty != item.original_qty),
+            COL_REV: (item.rev != item.original_rev),
+            COL_REMARK: (item.remark != item.original_remark)
+        }
+
+        for c, is_cell_mod in col_mod_map.items():
             cell = self.item(row, c)
             if cell:
-                if is_mod:
-                    cell.setForeground(QBrush(QColor("#0284C7"))) # SolidWorks Blue for modified
+                if is_cell_mod:
+                    # 수정된 셀: 눈에 띄는 은은한 앰버 옐로우 배경 + 딥 앰버 볼드 텍스트
+                    cell.setBackground(QBrush(QColor("#FEF3C7")))
+                    cell.setForeground(QBrush(QColor("#B45309")))
                     cell.setFont(QFont("Segoe UI", 10, QFont.Bold))
                 else:
+                    # 원본 상태 셀: 기본 배경 복원 (투명)
+                    cell.setBackground(QBrush())
                     if c == COL_PART_NAME and getattr(item, "is_subassembly", False):
                         cell.setForeground(QBrush(QColor("#1E3A8A"))) # Deep Navy for Sub-Assembly
                         cell.setFont(QFont("Segoe UI", 10, QFont.Bold))
