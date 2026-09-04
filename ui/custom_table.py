@@ -4,7 +4,8 @@ from typing import List, Optional
 from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QStyledItemDelegate,
     QComboBox, QSpinBox, QLineEdit, QHeaderView, QMenu,
-    QApplication, QStyle, QStyleOptionButton, QPushButton
+    QApplication, QStyle, QStyleOptionButton, QPushButton,
+    QAbstractItemView
 )
 from PySide6.QtCore import Qt, Signal, QModelIndex, QEvent, QRect, QRectF, QSize
 from PySide6.QtGui import QColor, QBrush, QFont, QAction, QIcon, QPainter, QPixmap, QLinearGradient, QPen
@@ -227,6 +228,7 @@ class BOMTableWidget(QTableWidget):
         self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QTableWidget.ExtendedSelection)
+        self.setEditTriggers(QAbstractItemView.AllEditTriggers) # 1회 클릭 및 키 입력 시 즉시 편집 모드 진입
         self.verticalHeader().setVisible(False)
         self.verticalHeader().setDefaultSectionSize(32)
         self.setIconSize(QSize(42, 20)) # 폭을 줄인 42x20 'Sub.' 배지 아이콘
@@ -368,13 +370,17 @@ class BOMTableWidget(QTableWidget):
             self._update_statistics()
 
     def _on_cell_clicked(self, row: int, col: int):
-        """화면 표시(🟢/🔴) 클릭 시 이전 다중 선택 해제 후 해당 부품만 단독 표시 실행"""
+        """화면 표시(🟢/🔴) 또는 셀 클릭 처리: 편집 가능 컬럼은 1회 클릭 시 즉시 편집 모드 진입"""
         if row < len(self.bom_items):
             if col == COL_ISOLATE:
                 self.clearSelection()
                 self.selectRow(row)
                 item = self.bom_items[row]
                 self.isolateRequested.emit([item])
+            elif col in (COL_PART_NAME, COL_MATERIAL, COL_QTY, COL_REV, COL_REMARK):
+                cell_item = self.item(row, col)
+                if cell_item and (cell_item.flags() & Qt.ItemIsEditable):
+                    self.editItem(cell_item)
 
     def _on_cell_changed(self, row: int, col: int):
         if self._is_populating or row >= len(self.bom_items):
