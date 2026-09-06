@@ -1,6 +1,6 @@
 import os
 import re
-from typing import List, Optional
+from typing import List, Optional, Dict
 from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QStyledItemDelegate,
     QComboBox, QSpinBox, QLineEdit, QHeaderView, QMenu,
@@ -33,10 +33,17 @@ COLUMN_HEADERS = [
     "REMARK"
 ]
 
+_ASSY_BADGE_CACHE: Dict[int, QIcon] = {}
+_TRIANGLE_ICON_CACHE: Dict[bool, QIcon] = {}
 
-def create_assy_badge_icon() -> QIcon:
-    """간결하고 세련된 'Sub.' 배지 이미지(QIcon, 42x20) 동적 생성"""
-    pixmap = QPixmap(42, 20)
+
+def get_assy_badge_icon(level: int = 1) -> QIcon:
+    """Sub1 ~ Sub10 등 서브어셈블리 계층별 배지 이미지(QIcon, 44x20) 동적 생성 및 캐싱"""
+    lvl = max(1, level)
+    if lvl in _ASSY_BADGE_CACHE:
+        return _ASSY_BADGE_CACHE[lvl]
+
+    pixmap = QPixmap(44, 20)
     pixmap.fill(Qt.transparent)
 
     painter = QPainter(pixmap)
@@ -44,23 +51,90 @@ def create_assy_badge_icon() -> QIcon:
     painter.setRenderHint(QPainter.TextAntialiasing)
 
     # 둥근 모서리 배지 배경 (SolidWorks Modern Blue 계열)
-    rect = QRectF(1.0, 1.0, 40.0, 18.0)
-    grad = QLinearGradient(0, 0, 42, 20)
-    grad.setColorAt(0.0, QColor("#2563EB")) # Modern Blue
-    grad.setColorAt(1.0, QColor("#1D4ED8")) # Deep SolidWorks Blue
+    rect = QRectF(1.0, 1.0, 42.0, 18.0)
+    grad = QLinearGradient(0, 0, 44, 20)
+    grad.setColorAt(0.0, QColor("#2563EB"))  # Modern Blue
+    grad.setColorAt(1.0, QColor("#1D4ED8"))  # Deep SolidWorks Blue
 
     painter.setBrush(QBrush(grad))
-    painter.setPen(QPen(QColor("#93C5FD"), 1.0)) # Crisp Light Blue Border
+    painter.setPen(QPen(QColor("#93C5FD"), 1.0))  # Crisp Light Blue Border
     painter.drawRoundedRect(rect, 3.5, 3.5)
 
-    # 'Sub.' 텍스트 (화이트 볼드, 8.5pt)
-    font = QFont("Segoe UI", 8.5, QFont.Bold)
+    # 'Sub1' ~ 'Sub10' 텍스트 (화이트 볼드, 자릿수에 맞춘 폰트 크기)
+    font_size = 8.5 if lvl < 10 else 7.5
+    font = QFont("Segoe UI", font_size, QFont.Bold)
     painter.setFont(font)
     painter.setPen(QColor("#FFFFFF"))
-    painter.drawText(rect, Qt.AlignCenter, "Sub.")
+    painter.drawText(rect, Qt.AlignCenter, f"Sub{lvl}")
 
     painter.end()
-    return QIcon(pixmap)
+    icon = QIcon(pixmap)
+    _ASSY_BADGE_CACHE[lvl] = icon
+    return icon
+
+
+def get_tree_triangle_icon(expanded: bool = True) -> QIcon:
+    """솔리드웍스 트리 스타일의 깔끔한 삼각형 토글 아이콘(QIcon, 16x16) 동적 생성 및 캐싱 (펼침: ▼ / 접힘: ▶)"""
+    if expanded in _TRIANGLE_ICON_CACHE:
+        return _TRIANGLE_ICON_CACHE[expanded]
+
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    # 솔리드웍스 트리 스타일 슬레이트 그레이 (#334155)
+    color = QColor("#334155")
+    painter.setBrush(QBrush(color))
+    painter.setPen(Qt.NoPen)
+
+    from PySide6.QtGui import QPolygonF
+    from PySide6.QtCore import QPointF
+
+    if expanded:
+        # 아래 방향 삼각형 (▼) - 중앙에 선명하게 정렬
+        poly = QPolygonF([
+            QPointF(3.0, 5.5),
+            QPointF(13.0, 5.5),
+            QPointF(8.0, 11.0)
+        ])
+    else:
+        # 오른쪽 방향 삼각형 (▶) - 중앙에 선명하게 정렬
+        poly = QPolygonF([
+            QPointF(5.5, 3.0),
+            QPointF(5.5, 13.0),
+            QPointF(11.0, 8.0)
+        ])
+
+    painter.drawPolygon(poly)
+    painter.end()
+
+    icon = QIcon(pixmap)
+    _TRIANGLE_ICON_CACHE[expanded] = icon
+    return icon
+
+
+def create_assy_badge_icon(level: int = 1) -> QIcon:
+    """기존 호환성 유지용 배지 아이콘 생성 래퍼"""
+    return get_assy_badge_icon(level)
+
+
+def clean_part_name_text(raw_text: str) -> str:
+    """파트명에서 트리 기호(└, ㄴ, ▼, ▶ 등), 배지 텍스트([Sub1], [Sub.], [Assy.] 등), 이모지 등을 제거하여 순수 파트명 추출"""
+    clean_val = re.sub(r'^[└ㄴ├│┕╰┌▼▶▾▸\s─\-]+', '', str(raw_text)).strip()
+    clean_val = re.sub(r'^\[(Sub\d*|Assy)\]\.?', '', clean_val, flags=re.IGNORECASE).strip()
+    clean_val = re.sub(r'^\[Sub\.?\]', '', clean_val, flags=re.IGNORECASE).strip()
+    if clean_val.startswith("🏷️"):
+        clean_val = clean_val[2:].strip()
+    return clean_val
+
+
+def format_part_name_display(part_name: str, level: int = 0) -> str:
+    """계층 레벨(Level)에 따라 └ 기호 앞에 레벨당 공백 3개(Level 1=3개, Level 2=6개 ...) 적용"""
+    if level > 0:
+        return f"{'   ' * level}└  {part_name}"
+    return part_name
 
 
 class CenteredCheckBoxDelegate(QStyledItemDelegate):
@@ -157,7 +231,7 @@ class QtySpinBoxDelegate(QStyledItemDelegate):
 
 
 class PartNameItemDelegate(QStyledItemDelegate):
-    """'Name of Part' 컬럼 편집 시 '└  ' 기호 및 들여쓰기 없이 순수 파트명만 편집창에 띄우는 델리게이트"""
+    """'Name of Part' 컬럼 편집 시 '└  ', '▼', '▶' 기호 및 들여쓰기 없이 순수 파트명만 편집창에 띄우는 델리게이트"""
 
     def __init__(self, table_widget: 'BOMTableWidget', parent=None):
         super().__init__(parent)
@@ -175,40 +249,31 @@ class PartNameItemDelegate(QStyledItemDelegate):
         row = index.row()
         if 0 <= row < len(self.table_widget.bom_items):
             item = self.table_widget.bom_items[row]
-            # 순수 파트명만 에디터에 로드 (앞의 '    └  ' 등 접두사 제외)
+            # 순수 파트명만 에디터에 로드 (앞의 접두사/트리 기호 제외)
             editor.setText(item.part_name)
         else:
             val = index.model().data(index, Qt.DisplayRole) or ""
-            clean_val = re.sub(r'^[└ㄴ├│┕╰┌\s─\-]+', '', val).strip()
+            clean_val = clean_part_name_text(val)
             editor.setText(clean_val)
         editor.selectAll()
 
     def setModelData(self, editor: QLineEdit, model, index: QModelIndex):
         row = index.row()
         raw_val = editor.text().strip()
-        clean_val = re.sub(r'^[└ㄴ├│┕╰┌\s─\-]+', '', raw_val).strip()
-        if clean_val.startswith("[Sub.]"):
-            clean_val = clean_val[6:].strip()
-        if clean_val.startswith("[Assy.]"):
-            clean_val = clean_val[7:].strip()
-        if clean_val.startswith("🏷️"):
-            clean_val = clean_val[2:].strip()
+        clean_val = clean_part_name_text(raw_val)
 
         if 0 <= row < len(self.table_widget.bom_items):
             item = self.table_widget.bom_items[row]
             item.part_name = clean_val
             level = getattr(item, "level", 0)
-            if level > 0:
-                formatted = f"{'    ' * level}└  {clean_val}"
-            else:
-                formatted = clean_val
+            formatted = format_part_name_display(clean_val, level)
             model.setData(index, formatted, Qt.EditRole)
         else:
             model.setData(index, clean_val, Qt.EditRole)
 
 
 class BOMTableWidget(QTableWidget):
-    """BOM 데이터를 표시하고 실시간 편집 및 화면 표시(Isolate)를 지원하는 메인 테이블 위젯"""
+    """BOM 데이터를 표시하고 실시간 편집 및 화면 표시(Isolate), 계층 트리 펼침/접힘(▼/▶)을 지원하는 메인 테이블 위젯"""
 
     itemDataChanged = Signal(int, BOMItem) # row, BOMItem
     statsUpdated = Signal(int, int, int, int) # total_items, total_qty, modified_count, common_count
@@ -218,7 +283,7 @@ class BOMTableWidget(QTableWidget):
         super().__init__(parent)
         self.bom_items: List[BOMItem] = []
         self._is_populating = False
-        self.assy_icon = create_assy_badge_icon()
+        self._filter_text = ""
 
         self._init_ui()
 
@@ -231,7 +296,7 @@ class BOMTableWidget(QTableWidget):
         self.setEditTriggers(QAbstractItemView.AllEditTriggers) # 1회 클릭 및 키 입력 시 즉시 편집 모드 진입
         self.verticalHeader().setVisible(False)
         self.verticalHeader().setDefaultSectionSize(32)
-        self.setIconSize(QSize(42, 20)) # 폭을 줄인 42x20 'Sub.' 배지 아이콘
+        self.setIconSize(QSize(16, 16)) # 솔리드웍스 트리 삼각형 아이콘 크기 (16x16)
         self.setShowGrid(True)
 
         # 델리게이트 설정
@@ -261,7 +326,7 @@ class BOMTableWidget(QTableWidget):
 
         self.setColumnWidth(COL_ISOLATE, 55)
         self.setColumnWidth(COL_COMMON, 65)
-        self.setColumnWidth(COL_PART_NAME, 260)
+        self.setColumnWidth(COL_PART_NAME, 270)
         self.setColumnWidth(COL_MATERIAL, 140)
         self.setColumnWidth(COL_REV, 70)
 
@@ -270,8 +335,16 @@ class BOMTableWidget(QTableWidget):
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
+    def _has_children(self, row: int) -> bool:
+        """지정된 행의 아이템이 하위 자식 컴포넌트들을 포함하고 있는지 여부 반환"""
+        if 0 <= row < len(self.bom_items) - 1:
+            curr_lvl = getattr(self.bom_items[row], "level", 0)
+            next_lvl = getattr(self.bom_items[row + 1], "level", 0)
+            return next_lvl > curr_lvl
+        return False
+
     def load_items(self, items: List[BOMItem]):
-        """BOMItem 리스트를 테이블에 로드 (서브어셈블리 Sub. 배지 및 └ 계층 구조 반영)"""
+        """BOMItem 리스트를 테이블에 로드 (서브어셈블리 ▼/▶ 삼각형 토글 아이콘 및 └ 계층 구조 반영)"""
         self._is_populating = True
         self.bom_items = items
         self.setRowCount(len(items))
@@ -302,17 +375,21 @@ class BOMTableWidget(QTableWidget):
             item_common.setFlags(item_common.flags() & ~Qt.ItemIsEditable)
             self.setItem(row, COL_COMMON, item_common)
 
-            # Name of Part (서브어셈블리 Sub. 배지 아이콘 + 스페이스 4개 └  계층 인덴트)
+            # Name of Part (스페이스 3개*Level └  계층 인덴트 및 서브어셈블리 ▼/▶ 삼각형 아이콘)
             level = getattr(item, "level", 0)
-            if level > 0:
-                indent = "    " * level
-                display_name = f"{indent}└  {item.part_name}"
-            else:
-                display_name = item.part_name
+            is_sub = getattr(item, "is_subassembly", False)
+            has_children = (row + 1 < len(items)) and (getattr(items[row + 1], "level", 0) > level)
+            is_expanded = getattr(item, "is_expanded", True)
+            display_name = format_part_name_display(item.part_name, level)
 
             item_part = QTableWidgetItem(display_name)
-            if getattr(item, "is_subassembly", False):
-                item_part.setIcon(self.assy_icon)
+            if is_sub and has_children:
+                item_part.setIcon(get_tree_triangle_icon(is_expanded))
+                item_part.setFont(QFont("Segoe UI", 10, QFont.Bold))
+                toggle_hint = "\n(클릭 시 하위 부품 접기)" if is_expanded else "\n(클릭 시 하위 부품 펼치기)"
+                item_part.setToolTip(f"서브어셈블리 (.sldasm): {item.part_name}{toggle_hint}")
+            elif is_sub:
+                item_part.setIcon(QIcon())
                 item_part.setFont(QFont("Segoe UI", 10, QFont.Bold))
                 item_part.setToolTip(f"서브어셈블리 (.sldasm): {item.part_name}")
             else:
@@ -341,7 +418,85 @@ class BOMTableWidget(QTableWidget):
             self._update_row_style(row, item)
 
         self._is_populating = False
+        self.update_tree_expansion()
         self._update_statistics()
+
+    def update_tree_expansion(self):
+        """트리 계층의 is_expanded 상태에 따라 각 행의 숨김(setRowHidden) 및 삼각형 아이콘(▼/▶) 갱신"""
+        self._is_populating = True
+        n = len(self.bom_items)
+
+        # hidden_ancestor_levels: 현재 접혀있는 상위 부모들의 level 스택
+        hidden_ancestor_levels = []
+
+        for i, item in enumerate(self.bom_items):
+            lvl = getattr(item, "level", 0)
+            is_sub = getattr(item, "is_subassembly", False)
+
+            # 현재 아이템의 level보다 크거나 같은 이전 접힌 부모 레벨은 스택에서 제거
+            hidden_ancestor_levels = [pl for pl in hidden_ancestor_levels if pl < lvl]
+
+            # 상위 부모 중 접힌 것이 하나라도 있으면 이 행은 숨김
+            is_hidden_by_tree = len(hidden_ancestor_levels) > 0
+
+            # 다음 행을 자식으로 가지고 있는지 확인
+            has_children = (i + 1 < n) and (getattr(self.bom_items[i + 1], "level", 0) > lvl)
+
+            # 검색 필터가 활성화된 경우 필터 조건 결합
+            if self._filter_text:
+                q = self._filter_text
+                match = any(
+                    q in (self.item(i, c).text().lower() if self.item(i, c) else "")
+                    for c in [COL_PART_NAME, COL_MATERIAL, COL_REV, COL_REMARK]
+                )
+                self.setRowHidden(i, not match)
+            else:
+                self.setRowHidden(i, is_hidden_by_tree)
+
+            if is_sub and has_children:
+                is_exp = getattr(item, "is_expanded", True)
+                if not is_exp:
+                    hidden_ancestor_levels.append(lvl)
+
+            # 파트명 텍스트 서식 및 삼각형 아이콘(▼/▶) 업데이트
+            part_cell = self.item(i, COL_PART_NAME)
+            if part_cell:
+                display_name = format_part_name_display(item.part_name, level=lvl)
+                part_cell.setText(display_name)
+                if is_sub and has_children:
+                    is_exp = getattr(item, "is_expanded", True)
+                    part_cell.setIcon(get_tree_triangle_icon(is_exp))
+                    toggle_hint = "\n(클릭 시 하위 부품 접기)" if is_exp else "\n(클릭 시 하위 부품 펼치기)"
+                    part_cell.setToolTip(f"서브어셈블리 (.sldasm): {item.part_name}{toggle_hint}")
+                else:
+                    part_cell.setIcon(QIcon())
+
+        self._is_populating = False
+        self.viewport().update()
+
+        self._is_populating = False
+        self.viewport().update()
+
+    def toggle_expand(self, row: int):
+        """지정된 행의 서브어셈블리 펼침/접힘(▼/▶) 상태를 토글"""
+        if 0 <= row < len(self.bom_items):
+            item = self.bom_items[row]
+            item.is_expanded = not getattr(item, "is_expanded", True)
+            self.update_tree_expansion()
+
+    def expand_all(self):
+        """모든 서브어셈블리를 펼칩니다 (▼)."""
+        for item in self.bom_items:
+            if getattr(item, "is_subassembly", False):
+                item.is_expanded = True
+        self.update_tree_expansion()
+
+    def collapse_all(self):
+        """모든 서브어셈블리를 접습니다 (▶)."""
+        for item in self.bom_items:
+            if getattr(item, "is_subassembly", False):
+                item.is_expanded = False
+        self.update_tree_expansion()
 
     def update_transparency_icons(self):
         """모든 행의 화면표시 아이콘(🟢 불투명 / 🔴 투명)을 갱신"""
@@ -370,14 +525,22 @@ class BOMTableWidget(QTableWidget):
             self._update_statistics()
 
     def _on_cell_clicked(self, row: int, col: int):
-        """화면 표시(🟢/🔴) 또는 셀 클릭 처리: 편집 가능 컬럼은 1회 클릭 시 즉시 편집 모드 진입"""
+        """화면 표시(🟢/🔴) 또는 셀 클릭 처리: 서브어셈블리 파트명 클릭 시 트리 펼침/접힘 토글"""
         if row < len(self.bom_items):
             if col == COL_ISOLATE:
                 self.clearSelection()
                 self.selectRow(row)
                 item = self.bom_items[row]
                 self.isolateRequested.emit([item])
-            elif col in (COL_PART_NAME, COL_MATERIAL, COL_QTY, COL_REV, COL_REMARK):
+            elif col == COL_PART_NAME:
+                item = self.bom_items[row]
+                if getattr(item, "is_subassembly", False) and self._has_children(row):
+                    self.toggle_expand(row)
+                else:
+                    cell_item = self.item(row, col)
+                    if cell_item and (cell_item.flags() & Qt.ItemIsEditable):
+                        self.editItem(cell_item)
+            elif col in (COL_MATERIAL, COL_QTY, COL_REV, COL_REMARK):
                 cell_item = self.item(row, col)
                 if cell_item and (cell_item.flags() & Qt.ItemIsEditable):
                     self.editItem(cell_item)
@@ -391,22 +554,12 @@ class BOMTableWidget(QTableWidget):
         val = cell_item.text().strip() if cell_item else ""
 
         if col == COL_PART_NAME:
-            # 'ㄴ', '└', '─', '├', '│', '┕', '╰', '[Sub.]', '[Assy.]', '🏷️' 등 트리 기호 제거하여 순수 파트명 추출
-            clean_val = re.sub(r'^[└ㄴ├│┕╰┌\s─\-]+', '', val).strip()
-            if clean_val.startswith("[Sub.]"):
-                clean_val = clean_val[6:].strip()
-            if clean_val.startswith("[Assy.]"):
-                clean_val = clean_val[7:].strip()
-            if clean_val.startswith("🏷️"):
-                clean_val = clean_val[2:].strip()
+            clean_val = clean_part_name_text(val)
             item.part_name = clean_val
 
-            # 트리 계층에 맞게 셀 텍스트 서식 재적용 (스페이스 4개 └  계층 인덴트)
+            # 트리 계층에 맞게 셀 텍스트 서식 재적용 (레벨당 스페이스 3개 └  계층 인덴트)
             level = getattr(item, "level", 0)
-            if level > 0:
-                formatted = f"{'    ' * level}└  {clean_val}"
-            else:
-                formatted = clean_val
+            formatted = format_part_name_display(clean_val, level)
 
             if cell_item and cell_item.text() != formatted:
                 self._is_populating = True
@@ -495,20 +648,9 @@ class BOMTableWidget(QTableWidget):
         self.statsUpdated.emit(total_items, total_qty, modified_count, common_count)
 
     def filter_items(self, query: str):
-        """검색어에 따른 행 필터링 (대소문자 무시)"""
-        query = query.strip().lower()
-        for row in range(self.rowCount()):
-            if not query:
-                self.setRowHidden(row, False)
-                continue
-
-            match = False
-            for col in [COL_PART_NAME, COL_MATERIAL, COL_REV, COL_REMARK]:
-                cell = self.item(row, col)
-                if cell and query in cell.text().lower():
-                    match = True
-                    break
-            self.setRowHidden(row, not match)
+        """검색어에 따른 행 필터링 (트리 펼침 상태와 연동)"""
+        self._filter_text = query.strip().lower()
+        self.update_tree_expansion()
 
     def toggle_batch_common_part(self):
         """선택된 행(또는 전체)의 공용품(Common Part) 체크박스를 토글/일괄 전환"""
@@ -570,17 +712,40 @@ class BOMTableWidget(QTableWidget):
 
     def _show_context_menu(self, pos):
         index = self.indexAt(pos)
+        target_row = -1
         if index.isValid():
-            row = index.row()
+            target_row = index.row()
             selected_rows = set(i.row() for i in self.selectedIndexes())
             # 우클릭한 행이 기존 다중 선택에 속하지 않으면 해당 행만 단독 선택
-            if row not in selected_rows or len(selected_rows) <= 1:
+            if target_row not in selected_rows or len(selected_rows) <= 1:
                 self.clearSelection()
-                self.selectRow(row)
-                self.setCurrentCell(row, index.column())
+                self.selectRow(target_row)
+                self.setCurrentCell(target_row, index.column())
 
         menu = QMenu(self)
         
+        # 서브어셈블리인 경우 펼치기/접기 메뉴 추가
+        if 0 <= target_row < len(self.bom_items):
+            target_item = self.bom_items[target_row]
+            if getattr(target_item, "is_subassembly", False) and self._has_children(target_row):
+                is_exp = getattr(target_item, "is_expanded", True)
+                toggle_text = "📁 하위 부품 접기 (Collapse)" if is_exp else "📂 하위 부품 펼치기 (Expand)"
+                toggle_action = QAction(toggle_text, self)
+                toggle_action.triggered.connect(lambda: self.toggle_expand(target_row))
+                menu.addAction(toggle_action)
+                menu.addSeparator()
+
+        # 전체 펼치기 / 접기
+        expand_all_action = QAction("📂 전체 트리 펼치기 (Expand All)", self)
+        expand_all_action.triggered.connect(self.expand_all)
+        menu.addAction(expand_all_action)
+
+        collapse_all_action = QAction("📁 전체 트리 접기 (Collapse All)", self)
+        collapse_all_action.triggered.connect(self.collapse_all)
+        menu.addAction(collapse_all_action)
+
+        menu.addSeparator()
+
         # 선택된 파트 화면 단독 표시 (Isolate)
         isolate_action = QAction("👁️ 선택한 부품만 화면에 표시 (Isolate)", self)
         isolate_action.triggered.connect(self._isolate_selected_rows)
@@ -647,17 +812,17 @@ class BOMTableWidget(QTableWidget):
                 if cell_common:
                     cell_common.setData(Qt.UserRole, item.is_common_part)
 
-                # 파트명 서식 재적용 (스페이스 4개 └  계층 인덴트)
+                # 파트명 서식 재적용 (레벨당 스페이스 3개 └  계층 인덴트)
                 part_cell = self.item(row, COL_PART_NAME)
                 if part_cell:
                     level = getattr(item, "level", 0)
-                    if level > 0:
-                        formatted_name = f"{'    ' * level}└  {item.part_name}"
-                    else:
-                        formatted_name = item.part_name
+                    is_sub = getattr(item, "is_subassembly", False)
+                    has_children = self._has_children(row)
+                    is_expanded = getattr(item, "is_expanded", True)
+                    formatted_name = format_part_name_display(item.part_name, level)
                     part_cell.setText(formatted_name)
-                    if getattr(item, "is_subassembly", False):
-                        part_cell.setIcon(self.assy_icon)
+                    if is_sub and has_children:
+                        part_cell.setIcon(get_tree_triangle_icon(is_expanded))
                     else:
                         part_cell.setIcon(QIcon())
 
@@ -667,5 +832,5 @@ class BOMTableWidget(QTableWidget):
                 self.item(row, COL_REMARK).setText(item.remark)
                 self._update_row_style(row, item)
         self._is_populating = False
-        self.viewport().update()
+        self.update_tree_expansion()
         self._update_statistics()

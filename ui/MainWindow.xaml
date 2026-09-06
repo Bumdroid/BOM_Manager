@@ -1,0 +1,658 @@
+<Window x:Class="BOMManager.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:BOMManager.UI.Converters"
+        xmlns:models="clr-namespace:BOMManager.Models"
+        Title="BOM Manager V0.0 - SolidWorks 2021"
+        Width="1200" Height="780"
+        MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="#E8ECF1"
+        FontFamily="Segoe UI, Malgun Gothic, sans-serif">
+
+    <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisInvert" Invert="True"/>
+        <converters:ModifiedBackgroundConverter x:Key="ModBg"/>
+        <converters:ModifiedForegroundConverter x:Key="ModFg"/>
+        <converters:TransparencyEmojiConverter x:Key="TransEmoji"/>
+        <converters:TreeTriangleGlyphConverter x:Key="TriangleGlyph"/>
+        <converters:LevelToMarginConverter x:Key="LevelToMargin"/>
+
+        <!-- Custom DataGrid Header Style -->
+        <Style x:Key="DataGridHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#F8FAFC" Offset="0.0"/>
+                        <GradientStop Color="#E2E8F0" Offset="1.0"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="#334155"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="0,0,1,2"/>
+        </Style>
+
+        <!-- Custom DataGrid Row Style -->
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Validation.ErrorTemplate" Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F0F9FF"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#BAE6FD"/>
+                    <Setter Property="Foreground" Value="#0C4A6E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Custom DataGrid Cell Style -->
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="BorderBrush" Value="#F1F5F9"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#BAE6FD"/>
+                    <Setter Property="Foreground" Value="#0C4A6E"/>
+                    <Setter Property="BorderBrush" Value="#BAE6FD"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- 0: Header -->
+            <RowDefinition Height="Auto"/> <!-- 1: Statistics Card -->
+            <RowDefinition Height="*"/>    <!-- 2: Table DataGrid -->
+            <RowDefinition Height="Auto"/> <!-- 3: Action Buttons -->
+            <RowDefinition Height="Auto"/> <!-- 4: Status Bar -->
+        </Grid.RowDefinitions>
+
+        <!-- 1. Header Panel -->
+        <Border Grid.Row="0"
+                Background="#F8FAFC"
+                BorderBrush="#CBD5E1"
+                BorderThickness="1,1,1,2"
+                CornerRadius="6"
+                Padding="12,10"
+                Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Pepe Logo & App Title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image x:Name="imgLogo" Width="36" Height="36" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="BOM Manager V0.0" FontSize="17" FontWeight="Bold" Foreground="#0D47A1"/>
+                        <TextBlock Text="SolidWorks 2021 Active Assembly BOM Automation" FontSize="11" Foreground="#64748B"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Connection Status Badge -->
+                <Border Grid.Column="1" x:Name="borderStatusBadge"
+                        CornerRadius="12"
+                        Background="#FEF3C7"
+                        BorderBrush="#FCD34D"
+                        BorderThickness="1"
+                        Padding="10,4"
+                        Margin="16,0,0,0"
+                        VerticalAlignment="Center">
+                    <TextBlock x:Name="txtStatusBadge"
+                               Text="연결 확인 중..."
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Foreground="#92400E"/>
+                </Border>
+
+                <!-- Top-Level Only Checkbox -->
+                <CheckBox Grid.Column="3" x:Name="chkTopLevel"
+                          Content="최상위(Top-Level) 부품만"
+                          FontSize="12"
+                          FontWeight="SemiBold"
+                          Foreground="#334155"
+                          VerticalAlignment="Center"
+                          Margin="0,0,14,0"
+                          ToolTip="체크 시 하위 서브어셈블리 내부 부품을 제외하고 최상위 부품만 추출합니다."
+                          Checked="ChkTopLevel_Changed"
+                          Unchecked="ChkTopLevel_Changed"/>
+
+                <!-- Search Filter Box -->
+                <Border Grid.Column="4"
+                        Background="#FFFFFF"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Width="220" Height="32"
+                        VerticalAlignment="Center">
+                    <Grid>
+                        <TextBox x:Name="txtSearch"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="8,5"
+                                 FontSize="12"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="TxtSearch_TextChanged"/>
+                        <TextBlock Text="🔍 부품명, 재질, 비고 검색..."
+                                   Foreground="#94A3B8"
+                                   FontSize="12"
+                                   Margin="8,6,0,0"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding Text.IsEmpty, ElementName=txtSearch, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- 2. Statistics Card & View Mode Toolbar Panel -->
+        <Border Grid.Row="1"
+                Background="#F8FAFC"
+                BorderBrush="#CBD5E1"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="10,8"
+                Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/> <!-- View Mode Switch Buttons: Summary / 도면번호 입력 -->
+                    <ColumnDefinition Width="*"/>    <!-- Statistics Summary Values -->
+                    <ColumnDefinition Width="Auto"/> <!-- Quick Action Buttons -->
+                </Grid.ColumnDefinitions>
+
+                <!-- View Mode Buttons (Summary & 도면번호 입력) -->
+                <Border Grid.Column="0"
+                        Background="#F1F5F9"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="3"
+                        Margin="0,0,14,0"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="btnModeSummary"
+                                Content="📊 Summary"
+                                FontWeight="Bold"
+                                FontSize="12"
+                                Background="#2563EB"
+                                Foreground="#FFFFFF"
+                                BorderBrush="#1D4ED8"
+                                BorderThickness="1"
+                                Padding="12,5"
+                                Margin="0,0,3,0"
+                                Cursor="Hand"
+                                Click="BtnModeSummary_Click"
+                                ToolTip="기본 BOM 요약 화면 (재질, 수량, 비고 등)으로 전환합니다."/>
+
+                        <Button x:Name="btnModeDrawing"
+                                Content="📐 도면번호 입력"
+                                FontWeight="Normal"
+                                FontSize="12"
+                                Background="#FFFFFF"
+                                Foreground="#475569"
+                                BorderBrush="#CBD5E1"
+                                BorderThickness="1"
+                                Padding="12,5"
+                                Cursor="Hand"
+                                Click="BtnModeDrawing_Click"
+                                ToolTip="도면번호(Drawing No.) 및 Rev. 입력/편집 화면으로 전환합니다."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Statistics Summary Values -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="고유 부품 수:" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="lblUniqueParts" Text="0" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,14,0" VerticalAlignment="Center"/>
+
+                    <TextBlock Text="총 수량 (Total Q'TY):" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="lblTotalQty" Text="0" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,14,0" VerticalAlignment="Center"/>
+
+                    <TextBlock Text="수정됨 (Modified):" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="lblModifiedCount" Text="0" FontSize="15" FontWeight="Bold" Foreground="#D97706" Margin="5,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Quick Action Buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="btnExpandAll" Content="📂 전체 펼치기" Margin="0,0,5,0" Click="BtnExpandAll_Click" ToolTip="모든 서브어셈블리 하위 부품 트리를 펼칩니다."/>
+                    <Button x:Name="btnCollapseAll" Content="📁 전체 접기" Margin="0,0,5,0" Click="BtnCollapseAll_Click" ToolTip="모든 서브어셈블리 하위 부품 트리를 접습니다."/>
+                    <Button x:Name="btnShowAll" Content="🌐 전체 표시" Margin="0,0,5,0" Click="BtnShowAll_Click" ToolTip="숨겨진 모든 부품을 다시 SolidWorks 화면에 표시합니다."/>
+                    <Button x:Name="btnRefresh" Content="🔄 새로고침" Click="BtnRefresh_Click" ToolTip="현재 활성 SolidWorks 어셈블리에서 데이터를 다시 읽어옵니다."/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 3. BOM DataGrid -->
+        <Border Grid.Row="2"
+                Background="#FFFFFF"
+                BorderBrush="#CBD5E1"
+                BorderThickness="1"
+                CornerRadius="4"
+                Margin="0,0,0,10">
+            <DataGrid x:Name="dgBom"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="False"
+                      CanUserResizeRows="False"
+                      CanUserSortColumns="False"
+                      GridLinesVisibility="All"
+                      HorizontalGridLinesBrush="#E2E8F0"
+                      VerticalGridLinesBrush="#E2E8F0"
+                      ColumnHeaderStyle="{StaticResource DataGridHeaderStyle}"
+                      AlternatingRowBackground="#F8FAFC"
+                      SelectionMode="Extended"
+                      SelectionUnit="FullRow"
+                      BorderThickness="0"
+                      HeadersVisibility="Column"
+                      RowHeight="32"
+                      FontSize="12"
+                      Foreground="#1E293B"
+                      CellEditEnding="DgBom_CellEditEnding">
+
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="📁 하위 부품 접기 / 📂 펼치기 (Toggle)" Click="MenuToggleTree_Click"/>
+                        <Separator/>
+                        <MenuItem Header="📂 전체 트리 펼치기 (Expand All)" Click="BtnExpandAll_Click"/>
+                        <MenuItem Header="📁 전체 트리 접기 (Collapse All)" Click="BtnCollapseAll_Click"/>
+                        <Separator/>
+                        <MenuItem Header="👁️ 선택한 부품만 화면에 표시 (Isolate)" Click="MenuIsolate_Click"/>
+                        <Separator/>
+                        <MenuItem Header="📐 도면번호 일괄 지정 (Batch Drawing No.)" Click="BtnBatchDrawingNo_Click"/>
+                        <MenuItem Header="🏷️ 재질 일괄 지정 (Batch Material)" Click="BtnBatchMaterial_Click"/>
+                        <MenuItem Header="📝 비고 일괄 지정 (Batch Remark)" Click="BtnBatchRemark_Click"/>
+                        <MenuItem Header="🔄 Rev. 일괄 지정 (Batch Rev)" Click="BtnBatchRev_Click"/>
+                        <MenuItem Header="💬 설명충 일괄 지정 (Batch Explanation)" Click="BtnBatchExplanation_Click"/>
+                        <Separator/>
+                        <MenuItem Header="📋 셀 내용 복사 (Copy)" Click="MenuCopy_Click"/>
+                        <MenuItem Header="📂 파트 폴더 열기 (Open Folder)" Click="MenuOpenFolder_Click"/>
+                        <Separator/>
+                        <MenuItem Header="↩️ 원래 값으로 되돌리기 (Reset)" Click="MenuReset_Click"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+
+                <DataGrid.Columns>
+                    <!-- Column 0: No. -->
+                    <DataGridTemplateColumn x:Name="colItemNo" Header="No." Width="55">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsModified, Converter={StaticResource ModBg}}"
+                                        Padding="4,2">
+                                    <TextBlock Text="{Binding ItemNoDisplay}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontWeight="{Binding IsModified, Converter={StaticResource ModFg}, ConverterParameter=Bold}"
+                                               Foreground="{Binding IsModified, Converter={StaticResource ModFg}}"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 1: 화면 표시 (Isolate) -->
+                    <DataGridTemplateColumn x:Name="colIsolate" Header="화면&#x0a;표시" Width="65">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Button Width="26" Height="26"
+                                        Padding="0" Margin="0"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Cursor="Hand"
+                                        Click="BtnIsolateRow_Click"
+                                        ToolTip="클릭 시 SolidWorks에서 이 파트만 불투명(초록색 원)으로 강조하고 나머지는 투명(붉은색 원)화합니다.">
+                                    <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- 불투명 강조 상태: 초록색 원 (Green Circle) -->
+                                        <Ellipse Width="12" Height="12"
+                                                 Fill="#10B981"
+                                                 Stroke="#059669"
+                                                 StrokeThickness="1.5"
+                                                 SnapsToDevicePixels="True"
+                                                 Visibility="{Binding IsOpaque, Converter={StaticResource BoolToVis}}"/>
+
+                                        <!-- 투명 상태: 붉은색 원 (Red Circle) -->
+                                        <Ellipse Width="12" Height="12"
+                                                 Fill="#EF4444"
+                                                 Stroke="#DC2626"
+                                                 StrokeThickness="1.5"
+                                                 SnapsToDevicePixels="True"
+                                                 Visibility="{Binding IsOpaque, Converter={StaticResource BoolToVisInvert}}"/>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 2: Name of Part -->
+                    <DataGridTemplateColumn x:Name="colPartName" Header="Name of Part" Width="320">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsPartNameModified, Converter={StaticResource ModBg}}"
+                                        Padding="6,2">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <!-- 1. 서브어셈블리 선행 공백 (Level > 0: Level 1=3개, Level 2=6개...) -->
+                                        <TextBlock Visibility="{Binding IsSubassembly, Converter={StaticResource BoolToVis}}"
+                                                   Text="{Binding SubassemblyIndent}"
+                                                   VerticalAlignment="Center"
+                                                   FontFamily="Consolas, Lucida Console, Courier New"
+                                                   xml:space="preserve"/>
+
+                                        <!-- 2. 서브어셈블리 삼각형 토글 버튼 (▼ / ▶) 및 5px 간격 -->
+                                        <Button Visibility="{Binding IsSubassembly, Converter={StaticResource BoolToVis}}"
+                                                Content="{Binding IsExpanded, Converter={StaticResource TriangleGlyph}}"
+                                                FontSize="10"
+                                                FontWeight="Bold"
+                                                Foreground="#334155"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Padding="0"
+                                                Margin="0,0,5,0"
+                                                Width="16" Height="16"
+                                                Cursor="Hand"
+                                                Click="BtnTreeToggle_Click"
+                                                ToolTip="하위 부품 펼치기/접기"/>
+
+                                        <!-- 3. 일반 파트 선행 접두사 (Level >= 1일 때 Level * 3개 공백 + └  ) -->
+                                        <TextBlock Visibility="{Binding IsSubassembly, Converter={StaticResource BoolToVisInvert}}"
+                                                   Text="{Binding PartPrefix}"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#64748B"
+                                                   FontFamily="Consolas, Lucida Console, Courier New"
+                                                   xml:space="preserve"/>
+
+                                        <!-- 4. 순수 파트명 -->
+                                        <TextBlock Text="{Binding PartName}"
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="{Binding IsSubassembly, Converter={StaticResource ModFg}, ConverterParameter=SubassemblyBold}"
+                                                   Foreground="{Binding IsPartNameModified, Converter={StaticResource ModFg}}"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <TextBox Text="{Binding PartName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         FontSize="12"
+                                         FontWeight="Bold"
+                                         Padding="4,2"
+                                         VerticalContentAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 3: Material (Summary 모드) -->
+                    <DataGridTemplateColumn x:Name="colMaterial" Header="Material" Width="150">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsMaterialModified, Converter={StaticResource ModBg}}"
+                                        Padding="6,2">
+                                    <TextBlock Text="{Binding Material}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding IsMaterialModified, Converter={StaticResource ModFg}}"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <ComboBox Text="{Binding Material, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                          IsEditable="True"
+                                          FontSize="12"
+                                          Padding="4,2">
+                                    <ComboBoxItem Content="AL 60"/>
+                                    <ComboBoxItem Content="SUS"/>
+                                    <ComboBoxItem Content="ULTEM 2300"/>
+                                    <ComboBoxItem Content="SS400"/>
+                                    <ComboBoxItem Content="SUS304"/>
+                                    <ComboBoxItem Content="AL6061-T6"/>
+                                    <ComboBoxItem Content="S45C"/>
+                                    <ComboBoxItem Content="SCM440"/>
+                                    <ComboBoxItem Content="SKD11"/>
+                                    <ComboBoxItem Content="POM"/>
+                                    <ComboBoxItem Content="MC NYLON"/>
+                                    <ComboBoxItem Content="URETHANE"/>
+                                    <ComboBoxItem Content="BRASS"/>
+                                </ComboBox>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 4: Q'TY (공통) -->
+                    <DataGridTemplateColumn x:Name="colQty" Header="Q'TY" Width="65">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsQtyModified, Converter={StaticResource ModBg}}"
+                                        Padding="4,2">
+                                    <TextBlock Text="{Binding Qty}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding IsQtyModified, Converter={StaticResource ModFg}}"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <TextBox Text="{Binding Qty, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         HorizontalContentAlignment="Center"
+                                         VerticalContentAlignment="Center"
+                                         FontSize="12"
+                                         Padding="4,2"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 5: Drawing No. (도면번호 입력 모드: OOO-PPPPPGBBBXXXX 컬러 서식) -->
+                    <DataGridTemplateColumn x:Name="colDrawingNo" Header="Drawing No." Width="230" Visibility="Collapsed">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsDrawingNoModified, Converter={StaticResource ModBg}}"
+                                        Padding="6,2">
+                                    <TextBlock FontFamily="Consolas, Lucida Console, Segoe UI, Malgun Gothic"
+                                               FontSize="12"
+                                               VerticalAlignment="Center">
+                                        <!-- O: 빨간색 (Red) -->
+                                        <Run Text="{Binding DrawingNoPartO, Mode=OneWay}" Foreground="#DC2626" FontWeight="Bold"/>
+                                        <!-- - : 구분 하이픈 -->
+                                        <Run Text="{Binding DrawingNoHyphen, Mode=OneWay}" Foreground="#64748B" FontWeight="Bold"/>
+                                        <!-- P: 진노랑 (Dark Yellow / Amber) -->
+                                        <Run Text="{Binding DrawingNoPartP, Mode=OneWay}" Foreground="#D97706" FontWeight="Bold"/>
+                                        <!-- G: 초록색 (Green) -->
+                                        <Run Text="{Binding DrawingNoPartG, Mode=OneWay}" Foreground="#16A34A" FontWeight="Bold"/>
+                                        <!-- B: 파란색 (Blue) -->
+                                        <Run Text="{Binding DrawingNoPartB, Mode=OneWay}" Foreground="#2563EB" FontWeight="Bold"/>
+                                        <!-- X: 보라색 (Purple) -->
+                                        <Run Text="{Binding DrawingNoPartX, Mode=OneWay}" Foreground="#9333EA" FontWeight="Bold"/>
+                                    </TextBlock>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <TextBox Text="{Binding DrawingNo, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         FontFamily="Consolas, Lucida Console, Segoe UI, Malgun Gothic"
+                                         VerticalContentAlignment="Center"
+                                         FontSize="12"
+                                         FontWeight="Bold"
+                                         Padding="4,2"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 6: Rev. (공통) -->
+                    <DataGridTemplateColumn x:Name="colRev" Header="Rev." Width="65">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsRevModified, Converter={StaticResource ModBg}}"
+                                        Padding="4,2">
+                                    <TextBlock Text="{Binding Rev}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding IsRevModified, Converter={StaticResource ModFg}}"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <TextBox Text="{Binding Rev, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         HorizontalContentAlignment="Center"
+                                         VerticalContentAlignment="Center"
+                                         FontSize="12"
+                                         Padding="4,2"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 7: 설명충 (Rev. 바로 옆 칸) -->
+                    <DataGridTemplateColumn x:Name="colExplainer" Header="설명충" Width="180">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsExplanationModified, Converter={StaticResource ModBg}}"
+                                        Padding="6,2">
+                                    <TextBlock Text="{Binding Explanation}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding IsExplanationModified, Converter={StaticResource ModFg}}"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <TextBox Text="{Binding Explanation, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         VerticalContentAlignment="Center"
+                                         FontSize="12"
+                                         Padding="4,2"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Column 8: REMARK (Summary 모드) -->
+                    <DataGridTemplateColumn x:Name="colRemark" Header="REMARK" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <Border Background="{Binding IsRemarkModified, Converter={StaticResource ModBg}}"
+                                        Padding="6,2">
+                                    <TextBlock Text="{Binding Remark}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding IsRemarkModified, Converter={StaticResource ModFg}}"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                        <DataGridTemplateColumn.CellEditingTemplate>
+                            <DataTemplate DataType="{x:Type models:BOMItem}">
+                                <TextBox Text="{Binding Remark, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                         VerticalContentAlignment="Center"
+                                         FontSize="12"
+                                         Padding="4,2"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellEditingTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- 4. Bottom Action Panel -->
+        <Grid Grid.Row="3" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Batch Editing Tools -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="btnBatchDrawingNo"
+                        Content="📐 도면번호 일괄 지정"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Margin="0,0,6,0"
+                        Click="BtnBatchDrawingNo_Click"
+                        ToolTip="선택한 행의 도면번호(Drawing No.)를 일괄 입력/변경합니다."/>
+
+                <Button x:Name="btnBatchMaterial"
+                        Content="🏷️ 재질 일괄 지정"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Margin="0,0,6,0"
+                        Click="BtnBatchMaterial_Click"
+                        ToolTip="선택한 행의 재질(Material)을 일괄 변경합니다."/>
+
+                <Button x:Name="btnBatchRemark"
+                        Content="📝 비고 일괄 지정"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Margin="0,0,6,0"
+                        Click="BtnBatchRemark_Click"
+                        ToolTip="선택한 행의 비고(REMARK)를 일괄 변경합니다."/>
+
+                <Button x:Name="btnBatchRev"
+                        Content="🔄 Rev. 일괄 지정"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Margin="0,0,6,0"
+                        Click="BtnBatchRev_Click"
+                        ToolTip="선택한 행의 Revision(Rev.)을 일괄 변경합니다."/>
+                
+                <Button x:Name="btnBatchExplanation"
+                        Content="💬 설명충 일괄 지정"
+                        Style="{StaticResource AccentButtonStyle}"
+                        Click="BtnBatchExplanation_Click"
+                        ToolTip="선택한 행의 설명충(Explanation)을 일괄 변경합니다."/>
+            </StackPanel>
+
+            <!-- Right: Export & SolidWorks Save -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="btnExportExcel"
+                        Content="📊 Excel 내보내기"
+                        Style="{StaticResource SuccessButtonStyle}"
+                        Margin="0,0,6,0"
+                        Click="BtnExportExcel_Click"/>
+
+                <Button x:Name="btnExportCsv"
+                        Content="📄 CSV 내보내기"
+                        Margin="0,0,10,0"
+                        Click="BtnExportCsv_Click"/>
+
+                <Button x:Name="btnApplySw"
+                        Content="💾 SolidWorks에 속성 저장 (Apply)"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Padding="14,6"
+                        Click="BtnApplySw_Click"
+                        ToolTip="입력/수정한 부품명, 도면번호, 재질, 수량, 비고를 각 파트의 Custom Property에 직접 저장합니다."/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 5. Status Bar -->
+        <Border Grid.Row="4"
+                Background="#DFE4EA"
+                BorderBrush="#CBD5E1"
+                BorderThickness="0,1,0,0"
+                Padding="8,4"
+                Margin="-16,0,-16,-16">
+            <TextBlock x:Name="txtStatusBar"
+                       Text="BOM Manager 준비 완료."
+                       FontSize="12"
+                       Foreground="#334155"/>
+        </Border>
+    </Grid>
+</Window>

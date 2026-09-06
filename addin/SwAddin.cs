@@ -14,8 +14,8 @@ namespace SolidWorksMLAddin
     [ProgId("SolidWorksMLAddin.SwAddin")]
     public class SwAddin : ISwAddin
     {
-        private ISldWorks _swApp;
-        private ICommandManager _cmdMgr;
+        private ISldWorks? _swApp;
+        private ICommandManager? _cmdMgr;
         private int _addinId;
         private const int MainCmdGroupId = 1005;
 

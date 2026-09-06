@@ -7,7 +7,11 @@ echo   SolidWorks 2021 - BOM Manager V0.0 실행 중...
 echo ===================================================
 echo.
 
-python "%~dp0run.py" %*
+if exist "%~dp0BOM_Manager.exe" (
+    "%~dp0BOM_Manager.exe" %*
+) else (
+    dotnet run --project "%~dp0BOMManager.csproj" -- %*
+)
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

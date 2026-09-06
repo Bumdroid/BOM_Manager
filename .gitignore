@@ -1,4 +1,4 @@
-﻿# Byte-compiled / optimized / DLL files
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *.class
@@ -13,8 +13,13 @@ dist/
 addin_debug.log
 
 # C# / Visual Studio Build files
+bin/
+obj/
 addin/bin/
 addin/obj/
+tests/bin/
+tests/obj/
+*.pdb
 *.user
 *.suo
 *.userosscache

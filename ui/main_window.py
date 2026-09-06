@@ -202,6 +202,17 @@ class MainWindow(QMainWindow):
 
         stats_layout.addStretch()
 
+        # 트리 전체 펼치기 & 접기 버튼
+        self.btn_expand_all = QPushButton("📂 전체 펼치기")
+        self.btn_expand_all.setToolTip("모든 서브어셈블리 하위 부품 트리를 펼칩니다.")
+        self.btn_expand_all.clicked.connect(lambda: self.table_widget.expand_all())
+        stats_layout.addWidget(self.btn_expand_all)
+
+        self.btn_collapse_all = QPushButton("📁 전체 접기")
+        self.btn_collapse_all.setToolTip("모든 서브어셈블리 하위 부품 트리를 접습니다.")
+        self.btn_collapse_all.clicked.connect(lambda: self.table_widget.collapse_all())
+        stats_layout.addWidget(self.btn_collapse_all)
+
         # 빠른 새로고침 & 전체 표시 버튼
         self.btn_show_all = QPushButton("🌐 전체 표시 (Show All)")
         self.btn_show_all.setToolTip("숨겨진 모든 부품을 다시 SolidWorks 화면에 표시합니다.")

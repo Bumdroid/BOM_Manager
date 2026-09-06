@@ -22,6 +22,7 @@ class BOMItem:
     is_virtual: bool = False
     is_opaque: bool = True # 화면 표시 상태: True(불투명, 초록색), False(투명, 빨간색)
     is_subassembly: bool = False # True인 경우 서브어셈블리(.sldasm)
+    is_expanded: bool = True # 트리 펼침 상태: True(펼쳐짐 ▼), False(접힘 ▶)
     level: int = 0 # 0: 최상위, 1: 1단계 하위, 2: 2단계 하위 등
     original_is_common_part: Optional[bool] = None
     original_part_name: Optional[str] = None
