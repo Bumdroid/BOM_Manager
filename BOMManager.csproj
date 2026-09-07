@@ -8,21 +8,26 @@
     <AssemblyName>BOM_Manager</AssemblyName>
     <RootNamespace>BOMManager</RootNamespace>
     <StartupObject>BOMManager.App</StartupObject>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>SolidWorks BOM Manager</Product>
+    <Company>CAD Automation</Company>
+    <Description>SolidWorks BOM Manager Standalone Windows Application (.NET C#)</Description>
+    <Copyright>Copyright © 2026</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="SolidWorks.Interop.sldworks">
-      <HintPath>addin\SolidWorks.Interop.sldworks.dll</HintPath>
+      <HintPath>lib\SolidWorks.Interop.sldworks.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="SolidWorks.Interop.swconst">
-      <HintPath>addin\SolidWorks.Interop.swconst.dll</HintPath>
+      <HintPath>lib\SolidWorks.Interop.swconst.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="SolidWorks.Interop.swpublished">
-      <HintPath>addin\SolidWorks.Interop.swpublished.dll</HintPath>
+      <HintPath>lib\SolidWorks.Interop.swpublished.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="System.IO.Compression" />
@@ -30,13 +35,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="addin\**" />
-    <None Include="addin\**" />
+    <Compile Remove="tests\**" />
+    <None Include="tests\**" />
+    <Compile Remove="dist_standalone\**" />
+    <None Include="dist_standalone\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="resources\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ProjectDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
-    <Copy SourceFiles="addin\SolidWorks.Interop.sldworks.dll;addin\SolidWorks.Interop.swconst.dll;addin\SolidWorks.Interop.swpublished.dll" DestinationFolder="$(TargetDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
-    <Copy SourceFiles="addin\SolidWorks.Interop.sldworks.dll;addin\SolidWorks.Interop.swconst.dll;addin\SolidWorks.Interop.swpublished.dll" DestinationFolder="$(ProjectDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="lib\SolidWorks.Interop.sldworks.dll;lib\SolidWorks.Interop.swconst.dll;lib\SolidWorks.Interop.swpublished.dll" DestinationFolder="$(TargetDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="lib\SolidWorks.Interop.sldworks.dll;lib\SolidWorks.Interop.swconst.dll;lib\SolidWorks.Interop.swpublished.dll" DestinationFolder="$(ProjectDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
   </Target>
 </Project>

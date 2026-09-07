@@ -1,0 +1,136 @@
+<UserControl x:Class="BOMManager.UI.Controls.HorizontalTreeCanvas"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:BOMManager.Models"
+             xmlns:converters="clr-namespace:BOMManager.UI.Converters"
+             TextOptions.TextFormattingMode="Ideal"
+             TextOptions.TextRenderingMode="ClearType"
+             TextOptions.TextHintingMode="Auto"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
+             RenderOptions.BitmapScalingMode="HighQuality"
+             RenderOptions.ClearTypeHint="Enabled"
+             Background="#F8FAFC">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisInvert" Invert="True"/>
+
+        <!-- Modern Node Card DropShadow -->
+        <DropShadowEffect x:Key="CardShadow"
+                          BlurRadius="10"
+                          Direction="270"
+                          ShadowDepth="3"
+                          Opacity="0.10"
+                          Color="#0F172A"/>
+
+        <DropShadowEffect x:Key="HoverShadow"
+                          BlurRadius="14"
+                          Direction="270"
+                          ShadowDepth="4"
+                          Opacity="0.22"
+                          Color="#2563EB"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Background Grid Pattern for CAD feel -->
+        <Border Background="#F1F5F9" BorderThickness="0"/>
+
+        <!-- Main Zoom & Pan ScrollViewer -->
+        <ScrollViewer x:Name="scrollViewer"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      PanningMode="Both"
+                      PreviewMouseWheel="ScrollViewer_PreviewMouseWheel">
+            
+            <Canvas x:Name="mainCanvas"
+                    Background="Transparent"
+                    MouseDown="Canvas_MouseDown"
+                    MouseMove="Canvas_MouseMove"
+                    MouseUp="Canvas_MouseUp"
+                    SnapsToDevicePixels="True"
+                    UseLayoutRounding="True"
+                    TextOptions.TextFormattingMode="Ideal"
+                    TextOptions.TextRenderingMode="ClearType"
+                    TextOptions.TextHintingMode="Auto"
+                    RenderOptions.ClearTypeHint="Enabled">
+                <Canvas.LayoutTransform>
+                    <ScaleTransform x:Name="treeScale" ScaleX="1.0" ScaleY="1.0"/>
+                </Canvas.LayoutTransform>
+
+                <!-- Connection Lines Canvas (Bézier Curves) -->
+                <Canvas x:Name="linksCanvas" IsHitTestVisible="False" SnapsToDevicePixels="True" UseLayoutRounding="True"/>
+
+                <!-- Node Cards Canvas -->
+                <Canvas x:Name="nodesCanvas"
+                        SnapsToDevicePixels="True"
+                        UseLayoutRounding="True"
+                        TextOptions.TextFormattingMode="Ideal"
+                        TextOptions.TextRenderingMode="ClearType"
+                        TextOptions.TextHintingMode="Auto"
+                        RenderOptions.ClearTypeHint="Enabled"/>
+            </Canvas>
+        </ScrollViewer>
+
+        <!-- Top-Right Floating Toolbar for Tree Controls -->
+        <Border HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,12,20,0"
+                Background="#FFFFFF"
+                BorderBrush="#CBD5E1"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="6,4">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="8" Direction="270" ShadowDepth="2" Opacity="0.15" Color="#000000"/>
+            </Border.Effect>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="btnCreateSubAssy"
+                        Content="➕ Sub-Assy 만들기"
+                        Height="26"
+                        Padding="10,0"
+                        Margin="2,0,6,0"
+                        Background="#2563EB"
+                        BorderBrush="#1D4ED8"
+                        Foreground="#FFFFFF"
+                        FontWeight="Bold"
+                        FontSize="11"
+                        ToolTip="새로운 Sub-Assy(서브어셈블리)를 생성합니다."
+                        Click="BtnCreateSubAssy_Click"/>
+                <Separator Width="1" Height="16" Margin="4,0" Background="#CBD5E1"/>
+                <Button x:Name="btnZoomIn" Content="+" FontSize="16" FontWeight="Bold" Width="28" Height="26" Padding="0" Margin="2,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#F8FAFC" BorderBrush="#CBD5E1" ToolTip="화면 확대 (Ctrl + 휠 위)" Click="BtnZoomIn_Click"/>
+                <Button x:Name="btnZoomOut" Content="−" FontSize="16" FontWeight="Bold" Width="28" Height="26" Padding="0" Margin="2,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#F8FAFC" BorderBrush="#CBD5E1" ToolTip="화면 축소 (Ctrl + 휠 아래)" Click="BtnZoomOut_Click"/>
+                <Button x:Name="btnZoomReset" Content="100%" Height="26" Padding="6,0" Margin="2,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#F8FAFC" BorderBrush="#CBD5E1" FontWeight="SemiBold" FontSize="11" ToolTip="기본 배율(100%)로 초기화" Click="BtnZoomReset_Click"/>
+                <Separator Width="1" Height="16" Margin="4,0" Background="#CBD5E1"/>
+                <Button x:Name="btnTreeExpandAll" Content="📂 전체 펼치기" Height="26" Padding="8,0" Margin="2,0" Background="#EFF6FF" BorderBrush="#93C5FD" Foreground="#1E40AF" FontWeight="SemiBold" FontSize="11" ToolTip="모든 서브어셈블리 브랜치를 펼칩니다." Click="BtnTreeExpandAll_Click"/>
+                <Button x:Name="btnTreeCollapseAll" Content="📁 전체 접기" Height="26" Padding="8,0" Margin="2,0" Background="#F8FAFC" BorderBrush="#CBD5E1" Foreground="#475569" FontWeight="SemiBold" FontSize="11" ToolTip="최상위 어셈블리만 남기고 모두 접습니다." Click="BtnTreeCollapseAll_Click"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Bottom-Left Info Legend & Drag Guide -->
+        <Border HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                Margin="16,0,0,16"
+                Background="#FFFFFF"
+                BorderBrush="#E2E8F0"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="12,7">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="6" Direction="270" ShadowDepth="2" Opacity="0.10"/>
+            </Border.Effect>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Background="#EFF6FF" BorderBrush="#2563EB" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                    <TextBlock Text="📦 Root Assy." FontSize="10" FontWeight="Bold" Foreground="#1E40AF"/>
+                </Border>
+                <Border Background="#F0FDFA" BorderBrush="#14B8A6" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                    <TextBlock Text="🧩 Sub Assy." FontSize="10" FontWeight="Bold" Foreground="#0F766E"/>
+                </Border>
+                <Border Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="0,0,10,0">
+                    <TextBlock Text="⚙️ Part" FontSize="10" FontWeight="Bold" Foreground="#475569"/>
+                </Border>
+                <TextBlock Text="🖱️ 파트 카드를 마우스로 드래그하여 원하는 Sub-Assy에 끌어놓으면(Drag &amp; Drop) 모델 계층이 자동 정리됩니다." FontSize="10" FontWeight="SemiBold" Foreground="#2563EB" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

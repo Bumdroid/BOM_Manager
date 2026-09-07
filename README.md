@@ -1,72 +1,58 @@
-# ⚡ SolidWorks 2021 - BOM Manager V0.0 (100% Native C# .NET)
+# ⚡ SolidWorks 2021 - BOM Manager V1.0 (100% Native C# .NET Standalone)
 
-SolidWorks 2021의 활성 어셈블리(Active Assembly, `.sldasm`) 문서와 실시간 연동하여 각 파트의 계층 트리 구조(Subassembly `▼`/`▶` 토글 및 `3 * Level` 공백 인덴트), 정보(Name of Part, Material, Q'TY, Rev., REMARK, Common Part)를 확인, 인라인 편집하고 SolidWorks 모델 속성에 저장 및 Excel/CSV로 내보내는 100% 네이티브 C# (.NET Framework 4.8 / WPF) 자동화 솔루션입니다.
+SolidWorks 2021의 활성 어셈블리(`.sldasm`) 또는 독립 실행형(Standalone) 어셈블리 직접 열기를 통해 실시간 연동하여 부품의 계층 트리 구조(서브어셈블리 `▶`/`▼` 토글 및 3칸 인덴트), 부품 정보(No., 화면표시, Name of Part, Q'TY, Drawing No. 컬러 세그먼트, Rev., 설명충 등)를 확인/편집하고 SolidWorks 모델 속성에 저장 및 Excel/CSV로 내보내는 100% 순수 C# (.NET Framework 4.8 / WPF) 윈도우 스탠드얼론 솔루션입니다.
 
 ---
 
 ## 📌 주요 특징 및 기능
 
-1. **100% C# (.NET Framework 4.8 + WPF) 순수 네이티브 구축**:
-   - Python / PySide6 / PyInstaller 의존성 완전 제거 (용량 70MB -> 80KB 초경량화, 0.1초 즉시 실행)
-   - SolidWorks 2021 COM Interop API 직접 바인딩
+1. **100% C# (.NET Framework 4.8 + WPF) 순수 윈도우 스탠드얼론**:
+   - Python 및 Add-in COM 등록 의존성 완전 제거 (용량 80KB 초경량, 0.1초 즉시 실행)
+   - Visual Studio 솔루션(`BOMManager.sln`) 통합 구조
+   - **단일 인스턴스 보장(Single Instance Mutex)**: 중복 실행 시 기존 창 자동 포커스(Foreground Window)
+   - **[📂 어셈블리 열기] 지원**: 독립 실행(Standalone) 상태에서 직접 `.sldasm`/`.sldprt` 파일을 선택하여 SolidWorks에 열고 즉시 동기화
 
-2. **계층 구조 및 솔리드웍스 스타일 삼각형 트리 토글**:
-   - **서브어셈블리 삼각형 토글 (`▼` / `▶`)**: 펼침 시 아래 방향(`▼`), 접힘 시 오른쪽 방향(`▶`)
-   - **계층 인덴트 규칙**: `Level * 3`개의 공백 후 `└  ` 기호 적용 (Level 0: 인덴트 없음, Level 1: 3개 `"   └  "`, Level 2: 6개 `"      └  "`)
+2. **계층 구조 및 솔리드웍스 스타일 삼각형 트리 & 인덴트 규칙**:
+   - **서브어셈블리 인덴트**: 2차 서브어셈블리 이상(`Level >= 2`)은 스페이스 3개 후 삼각형(`▶`/`▼`) 표시, `ㄴ` 모양 생략
+   - **파트 인덴트**: `Level * 3`개의 공백 후 `└  ` 기호 적용
    - **[📂 전체 펼치기]** / **[📁 전체 접기]** 원클릭 지원
 
 3. **SolidWorks 화면 표시 제어 (Isolate & Transparency)**:
-   - **화면 표시 버튼 (🟢 불투명 / 🔴 투명)**: 특정 부품 클릭 시 해당 부품만 화면에 불투명 강조하고 나머지는 투명화
+   - **화면 표시 버튼 (🟢 불투명 강조 / 🔴 투명)**: 클릭 시 해당 부품만 SolidWorks 화면에 불투명 강조하고 나머지는 투명화 (좌우 잘림 방지 캡슐 UI)
    - **[🌐 전체 표시]**: 모든 부품을 불투명 상태로 즉시 복원
 
-4. **BOM 정보 인라인 편집 & 실시간 변경 추적 (Amber Highlight)**:
-   - **No.** (순번, 수정 시 `*` 표시 및 배경 강조)
-   - **Common Part** (공용품 체크박스 - 셀 정중앙 정렬)
-   - **Name of Part** (부품명 - 더블 클릭 편집 시 순수 파트명만 표시)
-   - **Material** (재질 - 기계재료 콤보박스 선택 및 직접 입력)
-   - **Q'TY** (수량 - 정수 편집 >= 1)
-   - **Rev.** (리비전 관리)
-   - **REMARK** (비고 - 표면처리, 가공사양, 구매처 등 메모)
-   - 수정된 셀은 따뜻한 앰버 옐로우 (`#FEF3C7`) 배경과 딥 앰버 (`#B45309`) 볼드 텍스트로 실시간 강조
+4. **도면번호(Drawing No.) & 설명충 컬럼 및 모드 전환**:
+   - **[📐 도면번호 입력] 모드**: No. / 화면표시 / Name of Part / Q'TY / Drawing No. / Rev. / 설명충 표시
+   - **[📋 Summary] 모드**: 첫 화면으로 복귀하며 전체 속성 표시 및 Rev. 수정 방지(Read-Only)
+   - **Drawing No. 자동 하이픈 제외 & 5색 컬러 포맷**:
+     - 사용자 입력 시 `-`는 자동 제거
+     - 입력 완료 시 `OOO-PPPPPGBBBXXXX` 형식으로 5색 분할 표시 (O: 빨간색, P: 진노랑, G: 초록색, B: 파란색, X: 보라색)
+     - 수정 더블클릭 시에는 원본 텍스트로 편리하게 편집
 
-5. **편의 도구 및 일괄 변경 (Batch Tools)**:
-   - **실시간 검색 필터**: 부품명, 재질, 리비전, 비고 즉시 검색
-   - **[☑️ 공용품 일괄 전환]**: 선택 행 공용품 일괄 토글
-   - **[🏷️ 재질 일괄 지정]**: 다중 선택된 파트의 재질 일괄 변경
-   - **[📝 비고 일괄 지정]**: 다중 선택된 파트의 비고 일괄 변경
-   - **마우스 우클릭 메뉴**: Isolate, 트리 토글, 셀 복사, 탐색기에서 파일 열기, 원래 값 되돌리기(Reset)
-
-6. **SolidWorks 속성 저장 (Apply to SW)**:
-   - 수정한 정보를 각 파트 파일의 **Custom Properties(사용자 정의 속성)**에 직접 저장/동기화
-
-7. **완성형 보고서 내보내기**:
-   - **📊 Excel 내보내기 (.xlsx)**: 자체 구현된 OpenXML 엔진으로 외부 라이브러리 없이 네이비 블루 테마 스타일링 적용
-   - **📄 CSV 내보내기 (.csv)**: UTF-8 with BOM 인코딩으로 한글 깨짐 없는 CSV 생성
+5. **완성형 보고서 내보내기 & SolidWorks 동기화**:
+   - **[💾 SW에 적용]**: 수정한 부품명, 수량, 도면번호, 설명충, 리비전 등을 SolidWorks 파일 사용자 정의 속성(Custom Properties)에 즉시 저장
+   - **📊 Excel 내보내기 (.xlsx)**: 자체 OpenXML 엔진으로 Drawing No. 및 설명충 포함 네이비 테마 스타일링 내보내기
+   - **📄 CSV 내보내기 (.csv)**: UTF-8 with BOM 인코딩으로 엑셀 한글 깨짐 방지
 
 ---
 
-## 🚀 실행 및 빌드 방법
+## 🚀 빌드 및 실행 방법
 
-### 1. 원클릭 빌드 & 테스트
-[`build_all.bat`](file:///c:/Temp/BOM_Manager/build_all.bat)을 더블 클릭하면 다음 작업이 자동으로 완료됩니다:
+### 1. 원클릭 빌드 & 테스트 & 패키징
+[`build_all.bat`](file:///c:/Temp/BOM_Manager/build_all.bat)을 실행하면 다음 작업이 자동으로 완료됩니다:
 ```bash
-# 1. WPF 메인 애플리케이션 컴파일 (BOM_Manager.exe)
-dotnet build BOMManager.csproj -c Release
+# Visual Studio 솔루션 전체 빌드
+dotnet build BOMManager.sln -c Release
 
-# 2. SolidWorks COM Add-in DLL 컴파일 (SolidWorksMLAddin.dll)
-dotnet build addin/BOMManagerAddin.csproj -c Release
+# 단위 테스트 6종 전체 자동 검증
+dotnet run --project tests/BOMManagerTests.csproj -c Release
 
-# 3. 단위 테스트 검증
-dotnet run --project tests/BOMManagerTests.csproj
+# 독립 배포 패키지 구성 (dist_standalone/)
 ```
 
-### 2. SolidWorks 상단 탭 등록 (권장 ⭐)
-1. [`register_addin.bat`](file:///c:/Temp/BOM_Manager/register_addin.bat) 실행
-2. SolidWorks 2021 실행 시 상단에 **[BOM Manager]** 탭 자동 상주 및 클릭 즉시 실행
-
-### 3. 독립 실행
-- [`run_BOM_Manager.bat`](file:///c:/Temp/BOM_Manager/run_BOM_Manager.bat) 더블 클릭
-- 데모/가상 데이터 테스트:
+### 2. 스탠드얼론 실행
+- **실행**: `BOM_Manager.exe` 더블 클릭 (또는 `run_BOM_Manager.bat` 실행)
+- **데모/가상 데이터 테스트**:
   ```bash
   BOM_Manager.exe --mock
   ```
@@ -77,38 +63,36 @@ dotnet run --project tests/BOMManagerTests.csproj
 
 ```
 c:\Temp\BOM_Manager/
-├── BOMManager.csproj          # 메인 WPF 애플리케이션 프로젝트 파일 (.NET 4.8)
+├── BOMManager.sln             # Visual Studio 솔루션 파일
+├── BOMManager.csproj          # 메인 WPF 애플리케이션 (.NET 4.8)
 ├── BOM_Manager.exe            # 컴파일된 초경량 네이티브 실행 파일
-├── App.xaml / App.xaml.cs     # WPF 애플리케이션 진입점 및 글로벌 스타일
-├── build_all.bat              # 원클릭 전체 빌드 & 단위 테스트 스크립트
-├── register_addin.bat         # 솔리드웍스 상단 탭 Add-in 등록
-├── unregister_addin.bat       # 솔리드웍스 상단 탭 Add-in 등록 해제
+├── App.xaml / App.xaml.cs     # WPF 애플리케이션 진입점 & 단일 인스턴스 Mutex
+├── build_all.bat              # 솔루션 빌드, 테스트, 배포 패키징 스크립트
 ├── run_BOM_Manager.bat        # 런처 배치 파일
-├── README.md                  # 설명서
+├── lib/                       # SolidWorks COM Interop 참조 라이브러리
+│   ├── SolidWorks.Interop.sldworks.dll
+│   ├── SolidWorks.Interop.swconst.dll
+│   └── SolidWorks.Interop.swpublished.dll
+├── dist_standalone/           # 독립 실행 배포 폴더 (실행 파일 및 필수 DLL)
 │
 ├── Models/                    # 데이터 모델
-│   ├── BOMItem.cs             # INotifyPropertyChanged 기반 BOM 모델 & 변경 감지
+│   ├── BOMItem.cs             # BOM 모델, 변경 감지, Drawing No. 컬러 파싱, 설명충
 │   └── AssemblyInfo.cs        # SolidWorks 활성 어셈블리 메타데이터
 │
 ├── Core/                      # SolidWorks 통신 코어
-│   ├── ISolidWorksService.cs  # SolidWorks 서비스 인터페이스
-│   ├── SwConnector.cs         # SolidWorks 2021 COM API 연동 및 속성 입출력
+│   ├── ISolidWorksService.cs  # SolidWorks 서비스 인터페이스 (OpenDocument 포함)
+│   ├── SwConnector.cs         # SolidWorks COM API 연동, Isolate, 속성 I/O
 │   └── MockSwConnector.cs     # 가상 데이터 테스트 커넥터
 │
 ├── UI/                        # WPF 사용자 인터페이스
-│   ├── MainWindow.xaml / .cs  # 메인 윈도우 UI 및 DataGrid 이벤트 처리
-│   ├── Converters/            # 바인딩 컨버터 (트리 토글, 앰버 하이라이트 등)
-│   └── Dialogs/               # 일괄 변경 모달 다이얼로그 (재질, 비고)
+│   ├── MainWindow.xaml / .cs  # 메인 UI, 도면번호/Summary 뷰 모드, DataGrid 이벤트
+│   ├── Converters/            # 바인딩 컨버터 (Drawing No. 컬러 파싱, 앰버 하이라이트)
+│   └── Dialogs/               # 일괄 변경 모달 다이얼로그 (재질, 비고, 설명충)
 │
 ├── Utils/                     # 유틸리티
-│   └── BomExporter.cs         # 순수 .NET OpenXML Excel(.xlsx) & CSV 내보내기
+│   └── BomExporter.cs         # 순수 OpenXML Excel(.xlsx) & UTF-8 BOM CSV 내보내기
 │
-├── Addin/                     # SolidWorks COM Add-in
-│   ├── BOMManagerAddin.csproj # Add-in DLL 프로젝트 파일
-│   ├── SwAddin.cs             # ISwAddin COM 구현체
-│   └── SolidWorksMLAddin.dll  # 컴파일된 Add-in COM DLL
-│
-└── Tests/                     # 단위 테스트
+└── Tests/                     # 단위 및 기능 테스트 (6종)
     ├── BOMManagerTests.csproj # 테스트 프로젝트 파일
-    └── TestRunner.cs          # 인덴트 규칙, 변경 감지, Export 테스트 러너
+    └── TestRunner.cs          # 인덴트, 도면번호/설명충, OpenXML, Standalone 열기 검증
 ```

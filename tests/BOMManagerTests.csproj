@@ -20,15 +20,15 @@
 
   <ItemGroup>
     <Reference Include="SolidWorks.Interop.sldworks">
-      <HintPath>..\addin\SolidWorks.Interop.sldworks.dll</HintPath>
+      <HintPath>..\lib\SolidWorks.Interop.sldworks.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="SolidWorks.Interop.swconst">
-      <HintPath>..\addin\SolidWorks.Interop.swconst.dll</HintPath>
+      <HintPath>..\lib\SolidWorks.Interop.swconst.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="SolidWorks.Interop.swpublished">
-      <HintPath>..\addin\SolidWorks.Interop.swpublished.dll</HintPath>
+      <HintPath>..\lib\SolidWorks.Interop.swpublished.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="System.IO.Compression" />

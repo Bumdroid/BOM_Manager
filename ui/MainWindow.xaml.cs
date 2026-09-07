@@ -18,10 +18,12 @@ using Microsoft.Win32;
 
 namespace BOMManager.UI
 {
-    public enum BomViewMode
+    public enum BomProcessStep
     {
-        Summary,
-        DrawingNo
+        Step1Assy,       // ① Assy. 정리
+        Summary,         // Summary
+        Step2DrawingNo,  // ② 도번 입력
+        Step3Other       // ③ 기타(재질 등..)
     }
 
     public partial class MainWindow : Window
@@ -33,7 +35,7 @@ namespace BOMManager.UI
         private AssemblyInfo _currentAssyInfo = new();
         private readonly DispatcherTimer _autoTimer;
         private string _filterText = string.Empty;
-        private BomViewMode _currentViewMode = BomViewMode.Summary;
+        private BomProcessStep _currentStep = BomProcessStep.Summary;
 
         public MainWindow(ISolidWorksService swService, bool mockMode = false)
         {
@@ -48,27 +50,64 @@ namespace BOMManager.UI
 
             _autoTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(2500)
+                Interval = TimeSpan.FromMilliseconds(1000)
             };
             _autoTimer.Tick += AutoTimer_Tick;
-            _autoTimer.Start();
 
-            SetViewMode(BomViewMode.Summary);
-            CheckSwConnectionAndLoad(initial: true);
+            treeGraphView.ItemSelected += (s, item) =>
+            {
+                txtStatusBar.Text = $"선택된 파트: {item.PartName} (Q'TY: {item.Qty}, 도번: {item.DrawingNo})";
+            };
+
+            treeGraphView.ItemReparented += TreeGraphView_ItemReparented;
+            treeGraphView.CreateSubAssyRequested += TreeGraphView_CreateSubAssyRequested;
+
+            SetProcessStep(BomProcessStep.Summary);
+
+            // 창이 0.05초 만에 즉시 표시되도록 초기 로딩을 백그라운드로 지연 실행
+            Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                CheckSwConnectionAndLoad(initial: true, silent: true);
+                _autoTimer.Start();
+            }), DispatcherPriority.Background);
+        }
+
+        private string? FindResourceFile(string relativeFileName)
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string[] searchPaths = new[]
+            {
+                Path.Combine(baseDir, "resources", relativeFileName),
+                Path.Combine(baseDir, relativeFileName),
+                Path.Combine(baseDir, "..", "..", "resources", relativeFileName),
+                Path.Combine(baseDir, "..", "..", "..", "resources", relativeFileName),
+                Path.Combine(Directory.GetCurrentDirectory(), "resources", relativeFileName),
+                Path.Combine(Directory.GetCurrentDirectory(), relativeFileName)
+            };
+
+            foreach (var p in searchPaths)
+            {
+                try
+                {
+                    if (File.Exists(p)) return Path.GetFullPath(p);
+                }
+                catch { }
+            }
+            return null;
         }
 
         private void LoadAppLogo()
         {
             try
             {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string logoPath = Path.Combine(baseDir, "resources", "logo.png");
-                if (!File.Exists(logoPath))
-                {
-                    logoPath = Path.Combine(baseDir, "addin", "mainicon_32.png");
-                }
-
-                if (File.Exists(logoPath))
+                // 1. Pepe BOM Logo
+                string? logoPath = FindResourceFile("logo.png") ?? FindResourceFile("mainicon_32.png");
+                if (logoPath != null && File.Exists(logoPath))
                 {
                     var bmp = new BitmapImage();
                     bmp.BeginInit();
@@ -78,6 +117,19 @@ namespace BOMManager.UI
 
                     imgLogo.Source = bmp;
                     Icon = bmp;
+                }
+
+                // 2. Green CAD Pepe Icon for 제작도 V0.0 (Dummy)
+                string? dwgLogoPath = FindResourceFile("pepe_cad_icon_green.jpg") ?? FindResourceFile("pepe_cad_icon_cyan.jpg");
+                if (dwgLogoPath != null && File.Exists(dwgLogoPath))
+                {
+                    var dwgBmp = new BitmapImage();
+                    dwgBmp.BeginInit();
+                    dwgBmp.UriSource = new Uri(dwgLogoPath, UriKind.Absolute);
+                    dwgBmp.CacheOption = BitmapCacheOption.OnLoad;
+                    dwgBmp.EndInit();
+
+                    imgDwgLogo.Source = dwgBmp;
                 }
             }
             catch { }
@@ -89,17 +141,19 @@ namespace BOMManager.UI
 
             if (!_currentAssyInfo.IsConnected)
             {
-                borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
-                borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xEE, 0xEE));
+                borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xFE, 0xCA, 0xCA));
+                dotStatus.Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+                dotStatus.Stroke = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
                 txtStatusBadge.Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x1B, 0x1B));
-                txtStatusBadge.Text = "🔴 SolidWorks 미연결";
-                txtStatusBar.Text = _currentAssyInfo.ErrorMessage ?? "SolidWorks 2021이 실행되어 있지 않습니다.";
+                txtStatusBadge.Text = "SolidWorks 2021 미연결";
+                txtStatusBar.Text = _currentAssyInfo.ErrorMessage ?? "SolidWorks 2021이 실행 중이지 않거나 설치되어 있지 않습니다. PC에 설치된 SolidWorks 2021 버전을 확인해주세요.";
 
                 if (!initial && !silent && !_mockMode)
                 {
                     MessageBox.Show(
-                        _currentAssyInfo.ErrorMessage ?? "SolidWorks 2021 연결에 실패했습니다.\n\nSolidWorks가 켜져 있는지 확인해 주세요.",
-                        "연결 확인",
+                        _currentAssyInfo.ErrorMessage ?? "SolidWorks 2021이 실행 중이지 않거나 설치되어 있지 않습니다.\n\nPC에 설치된 SolidWorks 2021 버전을 확인해 주세요.",
+                        "SolidWorks 2021 연결 확인",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
                 }
@@ -110,8 +164,10 @@ namespace BOMManager.UI
             {
                 borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xF3, 0xC7));
                 borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xFC, 0xD3, 0x4D));
+                dotStatus.Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                dotStatus.Stroke = new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x06));
                 txtStatusBadge.Foreground = new SolidColorBrush(Color.FromRgb(0x92, 0x40, 0x0E));
-                txtStatusBadge.Text = $"🟡 SolidWorks 대기 중 ({_currentAssyInfo.Title})";
+                txtStatusBadge.Text = $"대기 중 ({_currentAssyInfo.Title})";
                 txtStatusBar.Text = _currentAssyInfo.ErrorMessage;
 
                 if (!initial && !silent)
@@ -121,10 +177,12 @@ namespace BOMManager.UI
                 return;
             }
 
-            borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xD1, 0xFA, 0xE5));
-            borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99));
+            borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xEC, 0xFD, 0xF5));
+            borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xA7, 0xF3, 0xD0));
+            dotStatus.Fill = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+            dotStatus.Stroke = new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69));
             txtStatusBadge.Foreground = new SolidColorBrush(Color.FromRgb(0x06, 0x5F, 0x46));
-            txtStatusBadge.Text = $"🟢 {_currentAssyInfo.Title}";
+            txtStatusBadge.Text = _currentAssyInfo.Title;
 
             // Load BOM Items
             bool topLevel = chkTopLevel.IsChecked == true;
@@ -143,18 +201,90 @@ namespace BOMManager.UI
             _allItems.Clear();
             foreach (var itm in items)
             {
+                itm.IsExpanded = false; // 기본 상태: 모든 서브어셈블리 트리 접힘
                 itm.PropertyChanged += Item_PropertyChanged;
                 _allItems.Add(itm);
             }
 
+            // 상위 어셈블리의 AssyCategory에 맞춰 하위 파트 AvailableAssyCategories 초기 갱신
+            for (int i = 0; i < _allItems.Count; i++)
+            {
+                var parent = _allItems[i];
+                if (!string.IsNullOrEmpty(parent.AssyCategory))
+                {
+                    for (int j = i + 1; j < _allItems.Count; j++)
+                    {
+                        if (_allItems[j].Level <= parent.Level) break;
+                        _allItems[j].UpdateAvailableAssyCategories(parent.AssyCategory);
+                    }
+                }
+            }
+
             UpdateDisplayedItems();
             UpdateStatistics();
+
+            if (_currentStep == BomProcessStep.Step1Assy)
+            {
+                treeGraphView.LoadItems(_allItems, _swService, _currentAssyInfo.Title);
+            }
+
             txtStatusBar.Text = $"'{_currentAssyInfo.Title}'에서 {items.Count}개 파트 정보를 성공적으로 불러왔습니다.";
         }
 
         private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            if (e.PropertyName == nameof(BOMItem.AssyCategory) && sender is BOMItem item)
+            {
+                // 상위 서브어셈블리 또는 자식이 있는 항목인 경우에만 하위 선택 목록 갱신 및 트리 펼침 수행
+                if (item.IsSubassembly)
+                {
+                    HandleParentAssyCategoryChanged(item);
+                }
+            }
             UpdateStatistics();
+        }
+
+        private void HandleParentAssyCategoryChanged(BOMItem parentItem)
+        {
+            if (string.IsNullOrEmpty(parentItem.AssyCategory)) return;
+
+            int parentIdx = _allItems.IndexOf(parentItem);
+            if (parentIdx >= 0)
+            {
+                int pLevel = parentItem.Level;
+                bool hasChildren = false;
+
+                for (int i = parentIdx + 1; i < _allItems.Count; i++)
+                {
+                    var child = _allItems[i];
+                    if (child.Level <= pLevel) break;
+
+                    hasChildren = true;
+                    // 상위 AssyCategory(예: LID Assy)에 따라 직속/하위 파트 선택 목록 갱신
+                    child.UpdateAvailableAssyCategories(parentItem.AssyCategory);
+                }
+
+                if (hasChildren && !parentItem.IsExpanded)
+                {
+                    // 상위 assy의 assy. 정보가 결정되면 그 assy 트리가 한단계 펼쳐짐
+                    parentItem.IsExpanded = true;
+                    UpdateDisplayedItems();
+                }
+            }
+        }
+
+        private bool IsElastomerItem(BOMItem item)
+        {
+            string assy = (item.AssyCategory ?? "").ToLowerInvariant();
+            if (assy.Contains("elastomer")) return true;
+
+            string mat = (item.Material ?? "").ToLowerInvariant();
+            string name = (item.PartName ?? "").ToLowerInvariant();
+            string rem = (item.Remark ?? "").ToLowerInvariant();
+            string exp = (item.Explanation ?? "").ToLowerInvariant();
+
+            string[] keywords = new[] { "elastomer", "rubber", "o-ring", "oring", "packing", "gasket", "우레탄", "urethane", "silicone", "실리콘", "고무", "epdm", "nbr", "fkm", "viton", "kapton" };
+            return keywords.Any(k => mat.Contains(k) || name.Contains(k) || rem.Contains(k) || exp.Contains(k));
         }
 
         private void UpdateDisplayedItems()
@@ -183,6 +313,7 @@ namespace BOMManager.UI
                     bool match = item.PartName.ToLowerInvariant().Contains(query) ||
                                  item.DrawingNo.ToLowerInvariant().Contains(query) ||
                                  item.Material.ToLowerInvariant().Contains(query) ||
+                                 item.AssyCategory.ToLowerInvariant().Contains(query) ||
                                  item.Rev.ToLowerInvariant().Contains(query) ||
                                  item.Explanation.ToLowerInvariant().Contains(query) ||
                                  item.Remark.ToLowerInvariant().Contains(query) ||
@@ -230,23 +361,83 @@ namespace BOMManager.UI
             if (_allItems.Any(i => i.IsModified)) return;
 
             var info = _swService.GetActiveAssemblyInfo();
-            if (info.IsConnected && string.IsNullOrEmpty(info.ErrorMessage))
+            if (info.IsConnected)
             {
-                if (info.Title != _currentAssyInfo.Title || _allItems.Count == 0)
+                if (string.IsNullOrEmpty(info.ErrorMessage))
                 {
-                    CheckSwConnectionAndLoad(initial: true, silent: true);
+                    // 정상 어셈블리 열림
+                    if (!_currentAssyInfo.IsConnected || info.Title != _currentAssyInfo.Title || _allItems.Count == 0)
+                    {
+                        CheckSwConnectionAndLoad(initial: true, silent: true);
+                    }
+                }
+                else
+                {
+                    // SolidWorks 2021은 켜져 있으나 어셈블리 문서가 안 열려있거나 대기 상태
+                    _currentAssyInfo = info;
+                    borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xF3, 0xC7));
+                    borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xFC, 0xD3, 0x4D));
+                    dotStatus.Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                    dotStatus.Stroke = new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x06));
+                    txtStatusBadge.Foreground = new SolidColorBrush(Color.FromRgb(0x92, 0x40, 0x0E));
+                    txtStatusBadge.Text = $"대기 중 ({info.Title})";
+                    txtStatusBar.Text = info.ErrorMessage;
+
+                    if (_allItems.Count > 0)
+                    {
+                        _allItems.Clear();
+                        _displayedItems.Clear();
+                        UpdateStatistics();
+                    }
                 }
             }
-            else if (!info.IsConnected)
+            else
             {
-                borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xE2, 0xE2));
-                borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                _currentAssyInfo = info;
+                borderStatusBadge.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xEE, 0xEE));
+                borderStatusBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xFE, 0xCA, 0xCA));
+                dotStatus.Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+                dotStatus.Stroke = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
                 txtStatusBadge.Foreground = new SolidColorBrush(Color.FromRgb(0x99, 0x1B, 0x1B));
-                txtStatusBadge.Text = "🔴 SolidWorks 미연결";
+                txtStatusBadge.Text = "SolidWorks 2021 미연결";
+                txtStatusBar.Text = info.ErrorMessage ?? "SolidWorks 2021이 실행 중이지 않거나 설치되어 있지 않습니다.";
+
+                if (_allItems.Count > 0)
+                {
+                    _allItems.Clear();
+                    _displayedItems.Clear();
+                    UpdateStatistics();
+                }
             }
         }
 
         #region Event Handlers
+
+        private void BtnNavBomManager_Click(object sender, RoutedEventArgs e)
+        {
+            btnNavBomManager.Background = new SolidColorBrush(Color.FromRgb(0xEF, 0xF6, 0xFF));
+            btnNavBomManager.BorderBrush = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
+            btnNavBomManager.BorderThickness = new Thickness(2);
+
+            btnNavDrawingMaker.Background = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC));
+            btnNavDrawingMaker.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+            btnNavDrawingMaker.BorderThickness = new Thickness(1);
+
+            SetProcessStep(_currentStep);
+        }
+
+        private void BtnNavDrawingMaker_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show(
+                "📐 [제작도 V0.0 (Dummy)] 모듈 안내:\n\n" +
+                "AutoCAD 도면 자동 생성 및 가공/제작도 일괄 출력 기능은 현재 준비 중입니다.\n" +
+                "추후 업데이트 시 해당 모듈에서 바로 도면 생성이 진행됩니다.",
+                "제작도 V0.0 (Dummy)",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            txtStatusBar.Text = "제작도 V0.0 (Dummy) 모듈: AutoCAD 도면 자동화 준비 중";
+        }
 
         private void ChkTopLevel_Changed(object sender, RoutedEventArgs e)
         {
@@ -257,6 +448,32 @@ namespace BOMManager.UI
         {
             _filterText = txtSearch.Text;
             UpdateDisplayedItems();
+        }
+
+        private void BtnOpenAssembly_Click(object sender, RoutedEventArgs e)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Title = "SolidWorks 어셈블리 열기",
+                Filter = "SolidWorks 어셈블리 (*.sldasm)|*.sldasm|SolidWorks 파트 (*.sldprt)|*.sldprt|모든 지원 CAD 파일 (*.sldasm;*.sldprt)|*.sldasm;*.sldprt",
+                FilterIndex = 1
+            };
+
+            if (ofd.ShowDialog(this) == true)
+            {
+                txtStatusBar.Text = $"'{Path.GetFileName(ofd.FileName)}' 문서를 여는 중...";
+                var (ok, msg) = _swService.OpenDocument(ofd.FileName);
+                if (ok)
+                {
+                    txtStatusBar.Text = msg;
+                    CheckSwConnectionAndLoad(initial: false, silent: false);
+                }
+                else
+                {
+                    MessageBox.Show(msg, "파일 열기 실패", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    txtStatusBar.Text = $"파일 열기 실패: {msg}";
+                }
+            }
         }
 
         private void BtnExpandAll_Click(object sender, RoutedEventArgs e)
@@ -319,63 +536,138 @@ namespace BOMManager.UI
             }
         }
 
-        private void BtnModeSummary_Click(object sender, RoutedEventArgs e)
+        private void BtnStep1Assy_Click(object sender, RoutedEventArgs e)
         {
-            SetViewMode(BomViewMode.Summary);
+            SetProcessStep(BomProcessStep.Step1Assy);
         }
 
-        private void BtnModeDrawing_Click(object sender, RoutedEventArgs e)
+        private void BtnSummary_Click(object sender, RoutedEventArgs e)
         {
-            SetViewMode(BomViewMode.DrawingNo);
+            SetProcessStep(BomProcessStep.Summary);
         }
 
-        public void SetViewMode(BomViewMode mode)
+        private void BtnStep2DrawingNo_Click(object sender, RoutedEventArgs e)
         {
-            _currentViewMode = mode;
+            SetProcessStep(BomProcessStep.Step2DrawingNo);
+        }
 
-            if (mode == BomViewMode.Summary)
+        private void BtnStep3Other_Click(object sender, RoutedEventArgs e)
+        {
+            SetProcessStep(BomProcessStep.Step3Other);
+        }
+
+        public void SetProcessStep(BomProcessStep step)
+        {
+            _currentStep = step;
+
+            // Step 버튼 기본 스타일 초기화
+            btnStep1Assy.Background = Brushes.White;
+            btnStep1Assy.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+            btnStep1Assy.FontWeight = FontWeights.Normal;
+            btnStep1Assy.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+
+            btnSummary.Background = Brushes.White;
+            btnSummary.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+            btnSummary.FontWeight = FontWeights.Normal;
+            btnSummary.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+
+            btnStep2DrawingNo.Background = Brushes.White;
+            btnStep2DrawingNo.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+            btnStep2DrawingNo.FontWeight = FontWeights.Normal;
+            btnStep2DrawingNo.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+
+            btnStep3Other.Background = Brushes.White;
+            btnStep3Other.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+            btnStep3Other.FontWeight = FontWeights.Normal;
+            btnStep3Other.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+
+            var activeBg = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
+            var activeBorder = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8));
+
+            switch (step)
             {
-                btnModeSummary.Background = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
-                btnModeSummary.Foreground = Brushes.White;
-                btnModeSummary.FontWeight = FontWeights.Bold;
-                btnModeSummary.BorderBrush = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8));
+                case BomProcessStep.Step1Assy:
+                    btnStep1Assy.Background = activeBg;
+                    btnStep1Assy.Foreground = Brushes.White;
+                    btnStep1Assy.FontWeight = FontWeights.Bold;
+                    btnStep1Assy.BorderBrush = activeBorder;
 
-                btnModeDrawing.Background = Brushes.White;
-                btnModeDrawing.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
-                btnModeDrawing.FontWeight = FontWeights.Normal;
-                btnModeDrawing.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+                    borderTreeView.Visibility = Visibility.Visible;
+                    borderDataGrid.Visibility = Visibility.Collapsed;
 
-                colDrawingNo.Visibility = Visibility.Collapsed;
-                colMaterial.Visibility = Visibility.Visible;
-                colRemark.Visibility = Visibility.Visible;
-                colExplainer.Visibility = Visibility.Visible;
+                    treeGraphView.LoadItems(_allItems, _swService, _currentAssyInfo.Title);
 
-                // Summary 모드에서는 Rev. 수정 불가 (Read-Only)
-                colRev.IsReadOnly = true;
+                    txtStatusBar.Text = "📌 [① Assy. 정리] BOM을 좌에서 우로 뻗어나가는 직관적인 수평 노드 트리 구조로 표시합니다.";
+                    break;
 
-                txtStatusBar.Text = "Summary 화면 모드: 부품명, 재질, 수량, Rev(읽기전용), 설명충, 비고가 표시됩니다.";
-            }
-            else
-            {
-                btnModeSummary.Background = Brushes.White;
-                btnModeSummary.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
-                btnModeSummary.FontWeight = FontWeights.Normal;
-                btnModeSummary.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+                case BomProcessStep.Summary:
+                    btnSummary.Background = activeBg;
+                    btnSummary.Foreground = Brushes.White;
+                    btnSummary.FontWeight = FontWeights.Bold;
+                    btnSummary.BorderBrush = activeBorder;
 
-                btnModeDrawing.Background = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
-                btnModeDrawing.Foreground = Brushes.White;
-                btnModeDrawing.FontWeight = FontWeights.Bold;
-                btnModeDrawing.BorderBrush = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8));
+                    borderTreeView.Visibility = Visibility.Collapsed;
+                    borderDataGrid.Visibility = Visibility.Visible;
 
-                colMaterial.Visibility = Visibility.Collapsed;
-                colRemark.Visibility = Visibility.Collapsed;
-                colDrawingNo.Visibility = Visibility.Visible;
-                colExplainer.Visibility = Visibility.Visible;
+                    colItemNo.Visibility = Visibility.Visible;
+                    colIsolate.Visibility = Visibility.Collapsed;
+                    colPartName.Visibility = Visibility.Visible;
+                    colQty.Visibility = Visibility.Visible;
+                    colMaterial.Visibility = Visibility.Visible;
+                    colDrawingNo.Visibility = Visibility.Collapsed;
+                    colRev.Visibility = Visibility.Visible;
+                    colRev.IsReadOnly = true;
+                    colExplainer.Visibility = Visibility.Visible;
+                    colRemark.Visibility = Visibility.Visible;
 
-                // 도면번호 입력 모드에서는 Rev. 수정 가능 (Editable)
-                colRev.IsReadOnly = false;
+                    txtStatusBar.Text = "📌 [Summary 모드] 전체 BOM 요약 화면 (부품명, 수량, Material(적용값), Rev(읽기전용), 설명충, 비고)을 확인합니다.";
+                    break;
 
-                txtStatusBar.Text = "도면번호 입력 모드: 부품명, 수량, 도면번호(Drawing No.), Rev.(편집가능), 설명충이 표시됩니다.";
+                case BomProcessStep.Step2DrawingNo:
+                    btnStep2DrawingNo.Background = activeBg;
+                    btnStep2DrawingNo.Foreground = Brushes.White;
+                    btnStep2DrawingNo.FontWeight = FontWeights.Bold;
+                    btnStep2DrawingNo.BorderBrush = activeBorder;
+
+                    borderTreeView.Visibility = Visibility.Collapsed;
+                    borderDataGrid.Visibility = Visibility.Visible;
+
+                    colItemNo.Visibility = Visibility.Visible;
+                    colIsolate.Visibility = Visibility.Collapsed;
+                    colPartName.Visibility = Visibility.Visible;
+                    colQty.Visibility = Visibility.Visible;
+                    colMaterial.Visibility = Visibility.Collapsed;
+                    colDrawingNo.Visibility = Visibility.Visible;
+                    colRev.Visibility = Visibility.Visible;
+                    colRev.IsReadOnly = false;
+                    colExplainer.Visibility = Visibility.Visible;
+                    colRemark.Visibility = Visibility.Collapsed;
+
+                    txtStatusBar.Text = "📌 [② 도번 입력] 파트별 도면번호(Drawing No. OOO-PPPPPGBBBXXXX), Revision, 설명충을 입력합니다.";
+                    break;
+
+                case BomProcessStep.Step3Other:
+                    btnStep3Other.Background = activeBg;
+                    btnStep3Other.Foreground = Brushes.White;
+                    btnStep3Other.FontWeight = FontWeights.Bold;
+                    btnStep3Other.BorderBrush = activeBorder;
+
+                    borderTreeView.Visibility = Visibility.Collapsed;
+                    borderDataGrid.Visibility = Visibility.Visible;
+
+                    colItemNo.Visibility = Visibility.Visible;
+                    colIsolate.Visibility = Visibility.Visible;
+                    colPartName.Visibility = Visibility.Visible;
+                    colQty.Visibility = Visibility.Visible;
+                    colMaterial.Visibility = Visibility.Visible;
+                    colDrawingNo.Visibility = Visibility.Visible;
+                    colRev.Visibility = Visibility.Visible;
+                    colRev.IsReadOnly = false;
+                    colExplainer.Visibility = Visibility.Visible;
+                    colRemark.Visibility = Visibility.Visible;
+
+                    txtStatusBar.Text = "📌 [③ 기타(재질 등..)] 재질(Material), 도번, 설명충, 비고(REMARK)를 확인하고 편집합니다.";
+                    break;
             }
         }
 
@@ -445,6 +737,28 @@ namespace BOMManager.UI
             }
         }
 
+        private void BtnBatchAssyCategory_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = dgBom.SelectedItems.OfType<BOMItem>().ToList();
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("Assy. 종류를 일괄 지정할 파트 행을 먼저 선택해주세요.", "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dlg = new BatchAssyCategoryDialog(selected.Count) { Owner = this };
+            if (dlg.ShowDialog() == true && !string.IsNullOrEmpty(dlg.SelectedAssyCategory))
+            {
+                foreach (var item in selected)
+                {
+                    item.AssyCategory = dlg.SelectedAssyCategory;
+                    item.CheckModified();
+                }
+                UpdateStatistics();
+                txtStatusBar.Text = $"{selected.Count}개 파트의 Assy. 종류를 '{dlg.SelectedAssyCategory}'(으)로 일괄 변경했습니다.";
+            }
+        }
+
         private void BtnBatchMaterial_Click(object sender, RoutedEventArgs e)
         {
             var selected = dgBom.SelectedItems.OfType<BOMItem>().ToList();
@@ -464,6 +778,184 @@ namespace BOMManager.UI
                 }
                 UpdateStatistics();
                 txtStatusBar.Text = $"{selected.Count}개 파트의 재질을 '{dlg.SelectedMaterial}'(으)로 일괄 변경했습니다.";
+            }
+        }
+
+        private void BtnApplyAll_Click(object sender, RoutedEventArgs e)
+        {
+            if (_allItems.Count == 0)
+            {
+                SetProcessStep(BomProcessStep.Summary);
+                return;
+            }
+
+            var modified = _allItems.Where(i => i.IsModified).ToList();
+            if (modified.Count > 0)
+            {
+                txtStatusBar.Text = $"{modified.Count}개 파트의 속성을 SolidWorks 모델에 저장 중...";
+                var (successCnt, failCnt, errors) = _swService.ApplyPropertiesToSolidWorks(modified);
+                UpdateStatistics();
+
+                if (failCnt > 0)
+                {
+                    txtStatusBar.Text = $"⚠️ SolidWorks 저장 결과: {successCnt}개 성공, {failCnt}개 실패";
+                }
+                else
+                {
+                    txtStatusBar.Text = $"✅ {successCnt}개 파트의 모든 수정 사항이 SolidWorks에 저장/적용되었습니다.";
+                }
+            }
+            else
+            {
+                txtStatusBar.Text = "ℹ️ 변경된 속성이 없습니다. Summary 요약 화면으로 이동합니다.";
+            }
+
+            // 누르면 Summary에서 수정된 내용으로 볼 수 있도록 Summary 모드로 즉시 전환
+            SetProcessStep(BomProcessStep.Summary);
+        }
+
+        private void TreeGraphView_ItemReparented(object? sender, (BOMItem DraggedItem, BOMItem TargetParentItem) e)
+        {
+            var (draggedItem, targetParent) = e;
+            if (draggedItem == null || targetParent == null) return;
+            if (draggedItem == targetParent) return;
+
+            // 1. Find dragged item and its contiguous children in _allItems
+            int draggedIdx = _allItems.IndexOf(draggedItem);
+            if (draggedIdx < 0) return;
+
+            int draggedLevel = draggedItem.Level;
+            var draggedBlock = new List<BOMItem> { draggedItem };
+
+            int checkIdx = draggedIdx + 1;
+            while (checkIdx < _allItems.Count && _allItems[checkIdx].Level > draggedLevel)
+            {
+                draggedBlock.Add(_allItems[checkIdx]);
+                checkIdx++;
+            }
+
+            // Target Level
+            bool isMasterRoot = targetParent.Level == 0 && targetParent.ItemNo == 0;
+            int targetLevel = isMasterRoot ? 1 : targetParent.Level + 1;
+            int levelDelta = targetLevel - draggedLevel;
+
+            // Adjust levels for dragged item and all descendants
+            foreach (var itm in draggedBlock)
+            {
+                itm.Level = Math.Max(1, itm.Level + levelDelta);
+                itm.CheckModified();
+            }
+
+            // Update subassembly / category context if parent has category
+            if (!string.IsNullOrEmpty(targetParent.AssyCategory))
+            {
+                foreach (var itm in draggedBlock)
+                {
+                    itm.UpdateAvailableAssyCategories(targetParent.AssyCategory);
+                }
+            }
+
+            // 2. Remove draggedBlock from _allItems
+            _allItems.RemoveRange(draggedIdx, draggedBlock.Count);
+
+            // 3. Find target parent insertion point
+            int insertIdx;
+            if (isMasterRoot)
+            {
+                insertIdx = _allItems.Count;
+            }
+            else
+            {
+                int targetIdx = _allItems.IndexOf(targetParent);
+                if (targetIdx < 0)
+                {
+                    insertIdx = _allItems.Count;
+                }
+                else
+                {
+                    // Insert after target parent and all its existing descendants
+                    insertIdx = targetIdx + 1;
+                    while (insertIdx < _allItems.Count && _allItems[insertIdx].Level > targetParent.Level)
+                    {
+                        insertIdx++;
+                    }
+                }
+            }
+
+            _allItems.InsertRange(insertIdx, draggedBlock);
+
+            // 4. Renumber ItemNo (1..N)
+            for (int i = 0; i < _allItems.Count; i++)
+            {
+                _allItems[i].ItemNo = i + 1;
+            }
+
+            // Expand target parent if it was collapsed
+            targetParent.IsExpanded = true;
+
+            // 5. Refresh UI
+            UpdateDisplayedItems();
+            UpdateStatistics();
+            treeGraphView.LoadItems(_allItems, _swService, _currentAssyInfo.Title);
+
+            txtStatusBar.Text = $"✅ '{draggedItem.PartName}'이(가) '{targetParent.PartName}' 하위로 이동되었습니다.";
+        }
+
+        private void TreeGraphView_CreateSubAssyRequested(object? sender, BOMItem? targetParent)
+        {
+            string parentName = targetParent != null ? targetParent.PartName : "Root Assy.";
+            string? parentCat = targetParent?.AssyCategory;
+            var dlg = new CreateSubAssyDialog(parentName, parentCat) { Owner = this };
+            if (dlg.ShowDialog() == true)
+            {
+                int newLevel = (targetParent != null && targetParent.ItemNo > 0) ? targetParent.Level + 1 : 1;
+                var newSub = new BOMItem(
+                    itemNo: _allItems.Count + 1,
+                    partName: dlg.SubAssyName,
+                    qty: 1,
+                    drawingNo: dlg.DrawingNo,
+                    explanation: dlg.Explanation,
+                    isSubassembly: true,
+                    level: newLevel,
+                    assyCategory: dlg.SubAssyName,
+                    remark: "수동 생성된 Sub-Assy"
+                )
+                {
+                    IsExpanded = true
+                };
+                newSub.CheckModified();
+
+                if (targetParent != null && targetParent.ItemNo > 0)
+                {
+                    int pIdx = _allItems.IndexOf(targetParent);
+                    if (pIdx >= 0)
+                    {
+                        int ins = pIdx + 1;
+                        while (ins < _allItems.Count && _allItems[ins].Level > targetParent.Level) ins++;
+                        _allItems.Insert(ins, newSub);
+                    }
+                    else
+                    {
+                        _allItems.Add(newSub);
+                    }
+                    targetParent.IsExpanded = true;
+                }
+                else
+                {
+                    _allItems.Add(newSub);
+                }
+
+                // Re-index
+                for (int i = 0; i < _allItems.Count; i++)
+                {
+                    _allItems[i].ItemNo = i + 1;
+                }
+
+                UpdateDisplayedItems();
+                UpdateStatistics();
+                treeGraphView.LoadItems(_allItems, _swService, _currentAssyInfo.Title);
+
+                txtStatusBar.Text = $"➕ '{parentName}' 하위에 새 Sub-Assy '{dlg.SubAssyName}'이(가) 생성되었습니다.";
             }
         }
 
@@ -557,41 +1049,7 @@ namespace BOMManager.UI
 
         private void BtnApplySw_Click(object sender, RoutedEventArgs e)
         {
-            if (_allItems.Count == 0)
-            {
-                MessageBox.Show("적용할 BOM 항목이 없습니다.", "경고", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            var modified = _allItems.Where(i => i.IsModified).ToList();
-            var targets = modified.Count > 0 ? modified : _allItems;
-
-            var res = MessageBox.Show(
-                $"총 {targets.Count}개 파트의 사용자 정의 속성(Custom Properties)에\n" +
-                $"입력하신 정보(Name of Part, Drawing No., Material, Q'TY, Rev., 설명충, REMARK)를 SolidWorks 모델에 반영하시겠습니까?",
-                "SolidWorks 속성 저장 확인",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (res != MessageBoxResult.Yes) return;
-
-            txtStatusBar.Text = "SolidWorks 모델에 속성 저장 중...";
-            var (successCnt, failCnt, errors) = _swService.ApplyPropertiesToSolidWorks(targets);
-
-            UpdateStatistics();
-
-            string resultMsg = $"성공: {successCnt}개 파트 반영 완료";
-            if (failCnt > 0)
-            {
-                resultMsg += $"\n실패: {failCnt}개\n\n에러 세부내용:\n" + string.Join("\n", errors.Take(5));
-                MessageBox.Show(resultMsg, "속성 저장 결과", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-            else
-            {
-                MessageBox.Show($"{successCnt}개 파트의 속성이 SolidWorks에 성공적으로 저장되었습니다.", "저장 완료", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-
-            txtStatusBar.Text = $"SolidWorks 속성 저장 완료 (성공: {successCnt}, 실패: {failCnt})";
+            BtnApplyAll_Click(sender, e);
         }
 
         #endregion
@@ -621,7 +1079,7 @@ namespace BOMManager.UI
         {
             if (dgBom.SelectedItem is BOMItem item)
             {
-                Clipboard.SetText($"{item.ItemNo}\t{item.PartName}\t{item.DrawingNo}\t{item.Material}\t{item.Qty}\t{item.Rev}\t{item.Explanation}\t{item.Remark}");
+                Clipboard.SetText($"{item.ItemNo}\t{item.PartName}\t{item.Qty}\t{item.AssyCategory}\t{item.Material}\t{item.DrawingNo}\t{item.Rev}\t{item.Explanation}\t{item.Remark}");
             }
         }
 

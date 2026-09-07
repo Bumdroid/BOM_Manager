@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 
 namespace BOMManager.Models
@@ -15,6 +18,7 @@ namespace BOMManager.Models
         private string _rev = string.Empty;
         private string _explanation = string.Empty;
         private string _remark = string.Empty;
+        private string _assyCategory = string.Empty;
         private string _fileName = string.Empty;
         private string _filePath = string.Empty;
         private string _configuration = "Default";
@@ -23,8 +27,14 @@ namespace BOMManager.Models
         private bool _isVirtual = false;
         private bool _isOpaque = true;
         private bool _isSubassembly = false;
-        private bool _isExpanded = true;
+        private bool _isExpanded = false;
         private int _level = 0;
+        private ObservableCollection<string> _availableAssyCategories = new();
+
+        public BOMItem()
+        {
+            UpdateAvailableAssyCategories(null);
+        }
 
         // 원본 값 저장 (수정 여부 감지용)
         public bool? OriginalIsCommonPart { get; set; }
@@ -35,6 +45,7 @@ namespace BOMManager.Models
         public string? OriginalRev { get; set; }
         public string? OriginalExplanation { get; set; }
         public string? OriginalRemark { get; set; }
+        public string? OriginalAssyCategory { get; set; }
 
         public int ItemNo
         {
@@ -189,6 +200,105 @@ namespace BOMManager.Models
             }
         }
 
+        public string AssyCategory
+        {
+            get => _assyCategory;
+            set
+            {
+                if (SetProperty(ref _assyCategory, value ?? string.Empty))
+                {
+                    CheckModified();
+                    OnPropertyChanged(nameof(IsAssyCategoryModified));
+                }
+            }
+        }
+
+        public ObservableCollection<string> AvailableAssyCategories
+        {
+            get => _availableAssyCategories;
+            set => SetProperty(ref _availableAssyCategories, value);
+        }
+
+        public void UpdateAvailableAssyCategories(string? parentAssyCategory)
+        {
+            string? current = _assyCategory;
+            var newCategories = new List<string>();
+
+            string parentNormalized = (parentAssyCategory ?? "").Trim().Replace(".", "");
+
+            if (string.Equals(parentNormalized, "LID Assy", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(parentNormalized, "LID", StringComparison.OrdinalIgnoreCase))
+            {
+                newCategories.Add("Cover");
+                newCategories.Add("Pusher");
+                newCategories.Add("Pusher bolt");
+                newCategories.Add("Pusher spring");
+                newCategories.Add("Lid bolt");
+            }
+            else if (string.Equals(parentNormalized, "Elastomer Assy", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(parentNormalized, "Elastomer", StringComparison.OrdinalIgnoreCase))
+            {
+                newCategories.Add("FRAME");
+                newCategories.Add("ELASTOMER");
+                newCategories.Add("FRAME BOLT");
+                newCategories.Add("BOTTOM COVER ASSY");
+            }
+            else if (string.Equals(parentNormalized, "BSS Assy", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(parentNormalized, "BSS", StringComparison.OrdinalIgnoreCase))
+            {
+                newCategories.Add("BSS BASE");
+                newCategories.Add("INSULATION FILM");
+            }
+            else if (string.Equals(parentNormalized, "Device & PCB", StringComparison.OrdinalIgnoreCase))
+            {
+                newCategories.Add("PCB");
+                newCategories.Add("Device");
+                newCategories.Add("Connector");
+                newCategories.Add("Sensor");
+                newCategories.Add("Bracket");
+            }
+            else if (string.Equals(parentNormalized, "FRAME bolt", StringComparison.OrdinalIgnoreCase))
+            {
+                newCategories.Add("FRAME bolt");
+                newCategories.Add("M3 Bolt");
+                newCategories.Add("M4 Bolt");
+                newCategories.Add("M5 Bolt");
+                newCategories.Add("Washer");
+            }
+            else
+            {
+                // Top-Level / 기본 Assy. 선택 목록
+                newCategories.Add("LID Assy");
+                newCategories.Add("Elastomer Assy.");
+                newCategories.Add("BSS Assy.");
+                newCategories.Add("Device & PCB");
+                newCategories.Add("FRAME bolt");
+            }
+
+            // 만약 기존에 선택되어 있던 값이 새 카테고리 목록에 없다면(예: 이전 카테고리 또는 직접 지정값), 보존하여 드롭다운에 표시되도록 추가
+            if (!string.IsNullOrEmpty(current) && !newCategories.Contains(current))
+            {
+                newCategories.Insert(0, current);
+            }
+
+            // 컬렉션 내용이 달라진 경우에만 동기화하여 불필요한 UI 이벤트 방지
+            if (!_availableAssyCategories.SequenceEqual(newCategories))
+            {
+                _availableAssyCategories.Clear();
+                foreach (var cat in newCategories)
+                {
+                    _availableAssyCategories.Add(cat);
+                }
+            }
+
+            // 선택값 보존
+            if (!string.IsNullOrEmpty(current))
+            {
+                _assyCategory = current;
+                OnPropertyChanged(nameof(AssyCategory));
+            }
+        }
+
         public string FileName
         {
             get => _fileName;
@@ -334,8 +444,7 @@ namespace BOMManager.Models
         public bool IsRevModified => OriginalRev != null && _rev != OriginalRev;
         public bool IsExplanationModified => OriginalExplanation != null && _explanation != OriginalExplanation;
         public bool IsRemarkModified => OriginalRemark != null && _remark != OriginalRemark;
-
-        public BOMItem() { }
+        public bool IsAssyCategoryModified => OriginalAssyCategory != null && _assyCategory != OriginalAssyCategory;
 
         public BOMItem(
             int itemNo,
@@ -347,7 +456,8 @@ namespace BOMManager.Models
             bool isSubassembly = false,
             int level = 0,
             string drawingNo = "",
-            string explanation = "")
+            string explanation = "",
+            string assyCategory = "")
         {
             _itemNo = itemNo;
             _partName = partName;
@@ -360,7 +470,9 @@ namespace BOMManager.Models
             _isSubassembly = isSubassembly;
             _level = level;
             _explanation = explanation ?? string.Empty;
+            _assyCategory = assyCategory ?? string.Empty;
 
+            UpdateAvailableAssyCategories(null);
             SnapshotOriginalValues();
         }
 
@@ -374,6 +486,7 @@ namespace BOMManager.Models
             OriginalRev = _rev;
             OriginalExplanation = _explanation;
             OriginalRemark = _remark;
+            OriginalAssyCategory = _assyCategory;
             CheckModified();
         }
 
@@ -387,6 +500,7 @@ namespace BOMManager.Models
             if (OriginalRev != null) Rev = OriginalRev;
             if (OriginalExplanation != null) Explanation = OriginalExplanation;
             if (OriginalRemark != null) Remark = OriginalRemark;
+            if (OriginalAssyCategory != null) AssyCategory = OriginalAssyCategory;
             IsModified = false;
         }
 
@@ -399,7 +513,8 @@ namespace BOMManager.Models
                             (OriginalQty.HasValue && _qty != OriginalQty.Value) ||
                             (OriginalRev != null && _rev != OriginalRev) ||
                             (OriginalExplanation != null && _explanation != OriginalExplanation) ||
-                            (OriginalRemark != null && _remark != OriginalRemark);
+                            (OriginalRemark != null && _remark != OriginalRemark) ||
+                            (OriginalAssyCategory != null && _assyCategory != OriginalAssyCategory);
 
             IsModified = modified;
             return modified;

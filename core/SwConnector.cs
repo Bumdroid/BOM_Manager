@@ -9,7 +9,7 @@ using SolidWorks.Interop.swconst;
 
 namespace BOMManager.Core
 {
-    public class SwConnector : ISolidWorksService
+    public class SwConnector : ISolidWorksService, IDisposable
     {
         private SldWorks? _swApp;
         private readonly List<CachedComponentRecord> _cachedCompRecords = new();
@@ -28,24 +28,57 @@ namespace BOMManager.Core
 
         public (bool Success, string Message) Connect()
         {
-            string[] progIds = { "SldWorks.Application", "SldWorks.Application.29", "SldWorks.Application.30" };
-            foreach (var progId in progIds)
+            // 기존 COM 핸들이 존재하면 안전하게 정리
+            CleanupComState();
+
+            // SolidWorks 2021 전용 연결 검사 (ProgID: SldWorks.Application.29 또는 활성 SldWorks.Application의 Revision 29.x / 2021)
+            string[] candidateProgIds = { "SldWorks.Application.29", "SldWorks.Application" };
+
+            foreach (var progId in candidateProgIds)
             {
                 try
                 {
-                    _swApp = (SldWorks)Marshal.GetActiveObject(progId);
-                    if (_swApp != null)
+                    var swCandidate = (SldWorks)Marshal.GetActiveObject(progId);
+                    if (swCandidate != null)
                     {
-                        string rev = _swApp.RevisionNumber();
-                        Log($"SolidWorks {rev} 연결 성공 (ProgId={progId})");
-                        return (true, $"SolidWorks {rev} 연결 성공");
+                        string rev = swCandidate.RevisionNumber();
+                        bool is2021 = progId.Equals("SldWorks.Application.29", StringComparison.OrdinalIgnoreCase) ||
+                                      rev.StartsWith("29", StringComparison.OrdinalIgnoreCase) ||
+                                      rev.Contains("2021");
+
+                        if (is2021)
+                        {
+                            _swApp = swCandidate;
+                            Log($"SolidWorks 2021 ({rev}) 연결 성공 (ProgId={progId})");
+                            return (true, $"SolidWorks 2021 ({rev}) 연결 성공");
+                        }
+                        else
+                        {
+                            Log($"감지된 SolidWorks 버전({rev})은 2021이 아니므로 연결 거부");
+                            SafeReleaseCom(ref swCandidate);
+                        }
                     }
                 }
                 catch { }
             }
 
-            Log("실행 중인 SolidWorks 인스턴스를 찾을 수 없습니다.");
-            return (false, "실행 중인 SolidWorks 인스턴스를 찾을 수 없습니다.");
+            // COM ROT에 아직 등록되지 않았지만 SLDWORKS.exe 프로세스가 기동 중인지 검사
+            bool isProcessRunning = false;
+            try
+            {
+                isProcessRunning = System.Diagnostics.Process.GetProcessesByName("SLDWORKS").Length > 0 ||
+                                   System.Diagnostics.Process.GetProcessesByName("sldworks").Length > 0;
+            }
+            catch { }
+
+            if (isProcessRunning)
+            {
+                Log("SolidWorks 2021 프로세스 실행 중이나 COM 초기화 대기 중");
+                return (false, "SolidWorks 2021이 실행 중이나 초기화(로딩) 중입니다. 잠시 후 자동으로 연결됩니다.");
+            }
+
+            Log("SolidWorks 2021 인스턴스를 찾을 수 없습니다.");
+            return (false, "실행 중인 SolidWorks 2021을 찾을 수 없습니다. PC에 설치된 SolidWorks 2021 버전이 있는지 확인해주세요.");
         }
 
         public AssemblyInfo GetActiveAssemblyInfo()
@@ -58,31 +91,38 @@ namespace BOMManager.Core
 
             if (_swApp == null)
             {
-                info.ErrorMessage = "SolidWorks에 연결되지 않았습니다.";
+                info.ErrorMessage = "SolidWorks 2021이 실행 중이지 않거나 설치되어 있지 않습니다. PC에 설치된 SolidWorks 2021 버전을 확인해주세요.";
                 return info;
             }
 
+            info.IsConnected = true;
+
+            ModelDoc2? model = null;
+            Configuration? conf = null;
+
             try
             {
-                var model = (ModelDoc2)_swApp.ActiveDoc;
+                model = (ModelDoc2)_swApp.ActiveDoc;
                 if (model == null)
                 {
-                    info.ErrorMessage = "열려 있는 문서가 없습니다.";
+                    info.Title = "문서 없음";
+                    info.ErrorMessage = "열려 있는 SolidWorks 어셈블리(.sldasm)가 없습니다.";
                     return info;
                 }
 
                 int docType = model.GetType();
                 if (docType != (int)swDocumentTypes_e.swDocASSEMBLY)
                 {
-                    info.ErrorMessage = "활성 문서가 어셈블리(.sldasm)가 아닙니다.";
+                    info.Title = model.GetTitle();
+                    info.Path = model.GetPathName();
+                    info.ErrorMessage = "활성 문서가 어셈블리(.sldasm)가 아닙니다 (파트 또는 도면).";
                     return info;
                 }
 
                 info.Title = model.GetTitle();
                 info.Path = model.GetPathName();
-                info.IsConnected = true;
 
-                var conf = model.GetActiveConfiguration() as Configuration;
+                conf = model.GetActiveConfiguration() as Configuration;
                 if (conf != null)
                 {
                     info.ActiveConfiguration = conf.Name;
@@ -91,9 +131,21 @@ namespace BOMManager.Core
                 var assy = (AssemblyDoc)model;
                 info.TotalComponentsCount = assy.GetComponentCount(false);
             }
+            catch (COMException comEx)
+            {
+                Log($"GetActiveAssemblyInfo COM 예외 (HResult=0x{comEx.ErrorCode:X8}): {comEx.Message}. 재연결 시도 대기");
+                info.ErrorMessage = $"SolidWorks 통신 오류: {comEx.Message}";
+                HandleComDisconnection();
+            }
             catch (Exception ex)
             {
                 info.ErrorMessage = $"어셈블리 정보 조회 오류: {ex.Message}";
+            }
+            finally
+            {
+                // 로컬 COM 임시 참조 해제 및 가비지 컬렉션 트리거
+                SafeReleaseCom(ref conf);
+                SafeReleaseCom(ref model);
             }
 
             return info;
@@ -107,13 +159,15 @@ namespace BOMManager.Core
                 if (!ok) return (new List<BOMItem>(), msg);
             }
 
-            _cachedCompRecords.Clear();
+            ClearComponentCache();
             var partMap = new Dictionary<(string Path, string Config), PartAggregateData>();
             var orderedKeys = new List<(string Path, string Config)>();
 
+            ModelDoc2? model = null;
+
             try
             {
-                var model = (ModelDoc2)_swApp!.ActiveDoc;
+                model = (ModelDoc2)_swApp!.ActiveDoc;
                 if (model == null || model.GetType() != (int)swDocumentTypes_e.swDocASSEMBLY)
                 {
                     return (new List<BOMItem>(), "활성 SolidWorks 어셈블리가 없습니다.");
@@ -172,7 +226,9 @@ namespace BOMManager.Core
                                 {
                                     parentNames.Add(pName.ToLowerInvariant().Trim());
                                 }
-                                parentComp = parentComp.GetParent();
+                                var nextParent = parentComp.GetParent();
+                                SafeReleaseCom(ref parentComp);
+                                parentComp = nextParent;
                             }
                             level = Math.Max(level, pDepth);
                         }
@@ -216,10 +272,13 @@ namespace BOMManager.Core
                             }
                         }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Log($"컴포넌트 탐색 개별 예외: {ex.Message}");
+                    }
                 }
 
-                // BOMItem 목록 구성 및 커스텀 속성 읽기
+                // BOMItem 목록 구성 및 커스텀 속성 고속 읽기 (컴포넌트당 ModelDoc 1회 오픈)
                 var items = new List<BOMItem>();
                 int itemNo = 1;
 
@@ -229,12 +288,25 @@ namespace BOMManager.Core
                     var comp = data.Component;
 
                     string partName = Path.GetFileNameWithoutExtension(data.FilePath);
-                    string drawingNo = ReadCustomProperty(comp, "DrawingNo") ?? ReadCustomProperty(comp, "도면번호") ?? ReadCustomProperty(comp, "DWG_NO") ?? ReadCustomProperty(comp, "DwgNo") ?? ReadCustomProperty(comp, "Drawing_No") ?? "";
-                    string material = ReadCustomProperty(comp, "Material") ?? ReadCustomProperty(comp, "재질") ?? "";
-                    string rev = ReadCustomProperty(comp, "Rev") ?? ReadCustomProperty(comp, "Revision") ?? "";
-                    string explanation = ReadCustomProperty(comp, "설명충") ?? ReadCustomProperty(comp, "설명") ?? ReadCustomProperty(comp, "Explanation") ?? ReadCustomProperty(comp, "Description") ?? "";
-                    string remark = ReadCustomProperty(comp, "Remark") ?? ReadCustomProperty(comp, "비고") ?? "";
-                    string isCommonStr = ReadCustomProperty(comp, "CommonPart") ?? ReadCustomProperty(comp, "공용품") ?? "";
+                    var propDict = ReadAllCustomProperties(comp);
+
+                    string GetProp(params string[] propKeys)
+                    {
+                        foreach (var pk in propKeys)
+                        {
+                            if (propDict.TryGetValue(pk, out var v) && !string.IsNullOrEmpty(v))
+                                return v;
+                        }
+                        return "";
+                    }
+
+                    string drawingNo = GetProp("DrawingNo", "도면번호", "DWG_NO", "DwgNo", "Drawing_No");
+                    string material = GetProp("Material", "재질");
+                    string rev = GetProp("Rev", "Revision");
+                    string explanation = GetProp("설명충", "설명", "Explanation", "Description");
+                    string remark = GetProp("Remark", "비고");
+                    string assyCategory = GetProp("Assy", "AssyCategory", "Assy_Category", "어셈블리구분");
+                    string isCommonStr = GetProp("CommonPart", "공용품");
                     bool isCommon = isCommonStr.Equals("Y", StringComparison.OrdinalIgnoreCase) || isCommonStr.Equals("True", StringComparison.OrdinalIgnoreCase);
 
                     var item = new BOMItem
@@ -247,6 +319,7 @@ namespace BOMManager.Core
                         Rev = rev,
                         Explanation = explanation,
                         Remark = remark,
+                        AssyCategory = assyCategory,
                         FileName = Path.GetFileName(data.FilePath),
                         FilePath = data.FilePath,
                         Configuration = data.Configuration,
@@ -261,11 +334,25 @@ namespace BOMManager.Core
                     items.Add(item);
                 }
 
+                // 가비지 컬렉션 및 COM 참조 메모리 정돈
+                TriggerGarbageCollection();
+
                 return (items, null);
+            }
+            catch (COMException comEx)
+            {
+                Log($"LoadBom COM 예외 발생 (HResult=0x{comEx.ErrorCode:X8}): {comEx.Message}");
+                HandleComDisconnection();
+                return (new List<BOMItem>(), $"SolidWorks 통신 오류: {comEx.Message}");
             }
             catch (Exception ex)
             {
+                Log($"LoadBom 예외: {ex.Message}");
                 return (new List<BOMItem>(), $"BOM 데이터 읽기 실패: {ex.Message}");
+            }
+            finally
+            {
+                SafeReleaseCom(ref model);
             }
         }
 
@@ -273,7 +360,11 @@ namespace BOMManager.Core
         {
             if (_swApp == null)
             {
-                return (0, items.Count(), new List<string> { "SolidWorks에 연결되어 있지 않습니다." });
+                var (ok, _) = Connect();
+                if (!ok)
+                {
+                    return (0, items.Count(), new List<string> { "SolidWorks에 연결되어 있지 않습니다." });
+                }
             }
 
             int success = 0;
@@ -288,6 +379,10 @@ namespace BOMManager.Core
                     continue;
                 }
 
+                ModelDoc2? modelDoc = null;
+                ModelDocExtension? ext = null;
+                CustomPropertyManager? propMgr = null;
+
                 try
                 {
                     if (string.IsNullOrEmpty(item.FilePath) || !File.Exists(item.FilePath))
@@ -301,7 +396,7 @@ namespace BOMManager.Core
                     int warningsDoc = 0;
                     int docType = item.IsSubassembly ? (int)swDocumentTypes_e.swDocASSEMBLY : (int)swDocumentTypes_e.swDocPART;
 
-                    var modelDoc = (ModelDoc2)_swApp.OpenDoc6(
+                    modelDoc = (ModelDoc2)_swApp!.OpenDoc6(
                         item.FilePath,
                         docType,
                         (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
@@ -312,8 +407,8 @@ namespace BOMManager.Core
 
                     if (modelDoc != null)
                     {
-                        var ext = modelDoc.Extension;
-                        var propMgr = ext.get_CustomPropertyManager(item.Configuration) ?? ext.get_CustomPropertyManager("");
+                        ext = modelDoc.Extension;
+                        propMgr = ext.get_CustomPropertyManager(item.Configuration) ?? ext.get_CustomPropertyManager("");
 
                         if (propMgr != null)
                         {
@@ -325,6 +420,8 @@ namespace BOMManager.Core
                             SetCustomProperty(propMgr, "설명", item.Explanation);
                             SetCustomProperty(propMgr, "Explanation", item.Explanation);
                             SetCustomProperty(propMgr, "Remark", item.Remark);
+                            SetCustomProperty(propMgr, "Assy", item.AssyCategory);
+                            SetCustomProperty(propMgr, "AssyCategory", item.AssyCategory);
                             SetCustomProperty(propMgr, "CommonPart", item.IsCommonPart ? "Y" : "N");
                         }
 
@@ -338,15 +435,30 @@ namespace BOMManager.Core
                     else
                     {
                         fail++;
-                        errors.Add($"문서 열기 실패: {item.PartName}");
+                        errors.Add($"문서 열기 실패 (에러코드 {errorsDoc}): {item.PartName}");
                     }
+                }
+                catch (COMException comEx)
+                {
+                    fail++;
+                    errors.Add($"COM 속성 반영 오류 ({item.PartName}): {comEx.Message}");
+                    Log($"ApplyProperties COMException ({item.PartName}): {comEx}");
                 }
                 catch (Exception ex)
                 {
                     fail++;
                     errors.Add($"속성 반영 오류 ({item.PartName}): {ex.Message}");
                 }
+                finally
+                {
+                    SafeReleaseCom(ref propMgr);
+                    SafeReleaseCom(ref ext);
+                    SafeReleaseCom(ref modelDoc);
+                }
             }
+
+            // 대량 속성 저장 완료 후 GC 실행
+            TriggerGarbageCollection();
 
             return (success, fail, errors);
         }
@@ -490,9 +602,10 @@ namespace BOMManager.Core
 
             if (_swApp != null)
             {
+                ModelDoc2? model = null;
                 try
                 {
-                    var model = (ModelDoc2)_swApp.ActiveDoc;
+                    model = (ModelDoc2)_swApp.ActiveDoc;
                     if (model != null && model.GetType() == (int)swDocumentTypes_e.swDocASSEMBLY)
                     {
                         EnsureCachedCompRecords(model);
@@ -563,9 +676,18 @@ namespace BOMManager.Core
                         model.GraphicsRedraw2();
                     }
                 }
+                catch (COMException comEx)
+                {
+                    Log($"SetComponentsTransparency COM 예외: {comEx.Message}");
+                    HandleComDisconnection();
+                }
                 catch (Exception ex)
                 {
                     Log($"SetComponentsTransparency 예외: {ex.Message}");
+                }
+                finally
+                {
+                    SafeReleaseCom(ref model);
                 }
             }
 
@@ -586,9 +708,10 @@ namespace BOMManager.Core
 
             if (_swApp != null)
             {
+                ModelDoc2? model = null;
                 try
                 {
-                    var model = (ModelDoc2)_swApp.ActiveDoc;
+                    model = (ModelDoc2)_swApp.ActiveDoc;
                     if (model != null && model.GetType() == (int)swDocumentTypes_e.swDocASSEMBLY)
                     {
                         EnsureCachedCompRecords(model);
@@ -605,13 +728,100 @@ namespace BOMManager.Core
                         model.GraphicsRedraw2();
                     }
                 }
+                catch (COMException comEx)
+                {
+                    Log($"ShowAllOpaque COM 예외: {comEx.Message}");
+                    HandleComDisconnection();
+                }
                 catch (Exception ex)
                 {
                     Log($"ShowAllOpaque 예외: {ex.Message}");
                 }
+                finally
+                {
+                    SafeReleaseCom(ref model);
+                }
             }
 
             return true;
+        }
+
+        public (bool Success, string Message) OpenDocument(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            {
+                return (false, $"지정된 파일을 찾을 수 없습니다: {filePath}");
+            }
+
+            if (_swApp == null)
+            {
+                var (ok, _) = Connect();
+                if (!ok)
+                {
+                    try
+                    {
+                        var t = Type.GetTypeFromProgID("SldWorks.Application.29");
+                        if (t != null)
+                        {
+                            _swApp = (SldWorks)Activator.CreateInstance(t);
+                            if (_swApp != null)
+                            {
+                                _swApp.Visible = true;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            if (_swApp == null)
+            {
+                return (false, "SolidWorks 2021이 설치되어 있지 않거나 실행할 수 없습니다. PC에 설치된 SolidWorks 2021 버전이 있는지 확인해주세요.");
+            }
+
+            ModelDoc2? model = null;
+            try
+            {
+                int errors = 0;
+                int warnings = 0;
+                int docType = filePath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase)
+                    ? (int)swDocumentTypes_e.swDocASSEMBLY
+                    : (int)swDocumentTypes_e.swDocPART;
+
+                model = (ModelDoc2)_swApp.OpenDoc6(
+                    filePath,
+                    docType,
+                    (int)swOpenDocOptions_e.swOpenDocOptions_Silent,
+                    "",
+                    ref errors,
+                    ref warnings
+                );
+
+                if (model != null)
+                {
+                    _swApp.ActivateDoc2(Path.GetFileName(filePath), false, ref errors);
+                    _swApp.Visible = true;
+                    return (true, $"SolidWorks에서 '{Path.GetFileName(filePath)}' 문서를 열었습니다.");
+                }
+                else
+                {
+                    return (false, $"문서 열기 실패 (에러 코드: {errors}, 경고: {warnings})");
+                }
+            }
+            catch (COMException comEx)
+            {
+                Log($"OpenDocument COM 예외: {comEx.Message}");
+                HandleComDisconnection();
+                return (false, $"SolidWorks 통신 오류: {comEx.Message}");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"문서 열기 중 예외 발생: {ex.Message}");
+            }
+            finally
+            {
+                SafeReleaseCom(ref model);
+            }
         }
 
         private void EnsureCachedCompRecords(ModelDoc2 model)
@@ -663,7 +873,9 @@ namespace BOMManager.Core
                             {
                                 parentNames.Add(pName.ToLowerInvariant().Trim());
                             }
-                            parentComp = parentComp.GetParent();
+                            var nextParent = parentComp.GetParent();
+                            SafeReleaseCom(ref parentComp);
+                            parentComp = nextParent;
                         }
                         level = Math.Max(level, pDepth);
                     }
@@ -692,29 +904,83 @@ namespace BOMManager.Core
             return seg.Split('-').First().Trim().ToLowerInvariant();
         }
 
-        private static string? ReadCustomProperty(Component2 comp, string propName)
+        private static Dictionary<string, string> ReadAllCustomProperties(Component2? comp)
         {
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (comp == null) return dict;
+
+            ModelDoc2? model = null;
+            ModelDocExtension? ext = null;
+            CustomPropertyManager? configPropMgr = null;
+            CustomPropertyManager? docPropMgr = null;
+
             try
             {
-                var model = comp.GetModelDoc2() as ModelDoc2;
+                model = comp.GetModelDoc2() as ModelDoc2;
                 if (model != null)
                 {
-                    var ext = model.Extension;
-                    var propMgr = ext.get_CustomPropertyManager(comp.ReferencedConfiguration) ?? ext.get_CustomPropertyManager("");
-                    if (propMgr != null)
+                    ext = model.Extension;
+                    if (ext != null)
                     {
-                        string valOut = "";
-                        string resValOut = "";
-                        bool wasResolved = false;
-                        bool linkToProp = false;
-                        int ret = propMgr.Get6(propName, false, out valOut, out resValOut, out wasResolved, out linkToProp);
-                        if (!string.IsNullOrEmpty(resValOut)) return resValOut;
-                        if (!string.IsNullOrEmpty(valOut)) return valOut;
+                        // 1. 파일 수준 일반 속성 읽기
+                        docPropMgr = ext.get_CustomPropertyManager("");
+                        if (docPropMgr != null)
+                        {
+                            ReadPropertiesIntoDict(docPropMgr, dict);
+                        }
+
+                        // 2. 설정(Configuration)별 속성 읽기 (우선순위 높음)
+                        if (!string.IsNullOrEmpty(comp.ReferencedConfiguration))
+                        {
+                            configPropMgr = ext.get_CustomPropertyManager(comp.ReferencedConfiguration);
+                            if (configPropMgr != null)
+                            {
+                                ReadPropertiesIntoDict(configPropMgr, dict);
+                            }
+                        }
                     }
                 }
             }
             catch { }
-            return null;
+            finally
+            {
+                SafeReleaseCom(ref configPropMgr);
+                SafeReleaseCom(ref docPropMgr);
+                SafeReleaseCom(ref ext);
+                SafeReleaseCom(ref model);
+            }
+
+            return dict;
+        }
+
+        private static void ReadPropertiesIntoDict(CustomPropertyManager propMgr, Dictionary<string, string> dict)
+        {
+            try
+            {
+                string[] targetKeys = {
+                    "DrawingNo", "도면번호", "DWG_NO", "DwgNo", "Drawing_No",
+                    "Material", "재질",
+                    "Rev", "Revision",
+                    "설명충", "설명", "Explanation", "Description",
+                    "Remark", "비고",
+                    "CommonPart", "공용품"
+                };
+
+                foreach (var key in targetKeys)
+                {
+                    string valOut = "";
+                    string resValOut = "";
+                    bool wasResolved = false;
+                    bool linkToProp = false;
+                    int ret = propMgr.Get6(key, false, out valOut, out resValOut, out wasResolved, out linkToProp);
+                    string finalVal = !string.IsNullOrEmpty(resValOut) ? resValOut : valOut;
+                    if (!string.IsNullOrEmpty(finalVal))
+                    {
+                        dict[key] = finalVal;
+                    }
+                }
+            }
+            catch { }
         }
 
         private static void SetCustomProperty(CustomPropertyManager propMgr, string propName, string value)
@@ -726,13 +992,73 @@ namespace BOMManager.Core
             catch { }
         }
 
+        private void ClearComponentCache()
+        {
+            foreach (var rec in _cachedCompRecords)
+            {
+                var comp = rec.Component;
+                SafeReleaseCom(ref comp);
+            }
+            _cachedCompRecords.Clear();
+        }
+
+        private void HandleComDisconnection()
+        {
+            Log("SolidWorks COM 연결 끊김 감지: 내부 상태 초기화 및 가비지 컬렉션 수행");
+            CleanupComState();
+        }
+
+        private void CleanupComState()
+        {
+            ClearComponentCache();
+            if (_swApp != null)
+            {
+                SafeReleaseCom(ref _swApp);
+            }
+            TriggerGarbageCollection();
+        }
+
+        private static void SafeReleaseCom<T>(ref T? comObj) where T : class
+        {
+            if (comObj == null) return;
+            try
+            {
+                if (Marshal.IsComObject(comObj))
+                {
+                    Marshal.ReleaseComObject(comObj);
+                }
+            }
+            catch { }
+            finally
+            {
+                comObj = null;
+            }
+        }
+
+        private static void TriggerGarbageCollection()
+        {
+            try
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
+            catch { }
+        }
+
+        public void Dispose()
+        {
+            CleanupComState();
+            GC.SuppressFinalize(this);
+        }
+
         private class CachedComponentRecord
         {
             public Component2? Component { get; set; }
-            public string Path { get; set; } = "";
+            public string Path { get; set; } = string.Empty;
             public bool IsSubassembly { get; set; }
-            public string Name { get; set; } = "";
-            public string CleanName { get; set; } = "";
+            public string Name { get; set; } = string.Empty;
+            public string CleanName { get; set; } = string.Empty;
             public int Level { get; set; }
             public List<string> ParentPaths { get; set; } = new();
             public List<string> ParentNames { get; set; } = new();
@@ -741,9 +1067,9 @@ namespace BOMManager.Core
         private class PartAggregateData
         {
             public int Count { get; set; }
-            public Component2 Component { get; set; } = null!;
-            public string FilePath { get; set; } = "";
-            public string Configuration { get; set; } = "Default";
+            public Component2? Component { get; set; }
+            public string FilePath { get; set; } = string.Empty;
+            public string Configuration { get; set; } = string.Empty;
             public bool IsSubassembly { get; set; }
             public int Level { get; set; }
         }

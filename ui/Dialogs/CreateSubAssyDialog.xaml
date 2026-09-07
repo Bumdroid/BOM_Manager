@@ -1,0 +1,76 @@
+<Window x:Class="BOMManager.UI.Dialogs.CreateSubAssyDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="새 Sub-Assy 생성"
+        Width="440" Height="270"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#F8FAFC"
+        FontFamily="Segoe UI, Malgun Gothic, sans-serif">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="🧩 새 Sub-Assy (서브어셈블리) 만들기"
+                       FontSize="16"
+                       FontWeight="Bold"
+                       Foreground="#0F172A"/>
+            <TextBlock Text="하위 부품들을 그룹화하여 관리할 새 서브어셈블리 정보를 입력하세요."
+                       FontSize="12"
+                       Foreground="#64748B"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- Form Fields -->
+        <StackPanel Grid.Row="1">
+            <Border Background="#EFF6FF" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="4" Padding="8,5" Margin="0,0,0,12">
+                <TextBlock x:Name="txtParentInfo" Text="📍 생성 위치 (상위 어셈블리): Root Assy." FontSize="11" FontWeight="SemiBold" Foreground="#1E40AF"/>
+            </Border>
+
+            <TextBlock Text="Sub-Assy 이름 (선택):" FontSize="12" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,4"/>
+            <ComboBox x:Name="cboSubAssyName"
+                      Height="32"
+                      FontSize="13"
+                      FontWeight="Bold"
+                      IsEditable="False"
+                      VerticalContentAlignment="Center"
+                      BorderBrush="#2563EB"
+                      BorderThickness="1.5"
+                      Margin="0,0,0,12" />
+
+            <TextBlock Text="설명 (선택):" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,4"/>
+            <TextBox x:Name="txtExplanation"
+                     Height="28"
+                     FontSize="12"
+                     Padding="6,2"
+                     VerticalContentAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Action Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="취소"
+                    Width="80" Height="32"
+                    Margin="0,0,8,0"
+                    Background="#F1F5F9"
+                    BorderBrush="#CBD5E1"
+                    Foreground="#475569"
+                    IsCancel="True"
+                    Click="BtnCancel_Click"/>
+
+            <Button Content="➕ 생성"
+                    Width="90" Height="32"
+                    Background="#2563EB"
+                    BorderBrush="#1D4ED8"
+                    Foreground="#FFFFFF"
+                    FontWeight="Bold"
+                    IsDefault="True"
+                    Click="BtnCreate_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

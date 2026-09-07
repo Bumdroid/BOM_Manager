@@ -12,5 +12,6 @@ namespace BOMManager.Core
         (int SuccessCount, int FailCount, List<string> Errors) ApplyPropertiesToSolidWorks(IEnumerable<BOMItem> items);
         bool SetComponentsTransparency(IEnumerable<BOMItem> targetItems, IEnumerable<BOMItem> allItems, bool isolateMode = true);
         bool ShowAllOpaque(IEnumerable<BOMItem> allItems);
+        (bool Success, string Message) OpenDocument(string filePath);
     }
 }

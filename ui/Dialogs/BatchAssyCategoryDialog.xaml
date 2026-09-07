@@ -1,8 +1,8 @@
-<Window x:Class="BOMManager.UI.Dialogs.BatchMaterialDialog"
+<Window x:Class="BOMManager.UI.Dialogs.BatchAssyCategoryDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
-        Title="재질 일괄 지정 (Batch Material)"
+        Title="Assy. 종류 일괄 지정 (Batch Assy. Category)"
         Width="380" Height="200"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
@@ -17,22 +17,23 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" x:Name="lblInfo"
-                   Text="선택한 파트에 적용할 재질을 선택하거나 입력하세요:"
+                   Text="선택한 파트에 적용할 Assy. 종류를 선택하거나 입력하세요:"
                    TextWrapping="Wrap"
                    Foreground="#1E293B"
                    FontSize="13"
                    FontWeight="SemiBold"
                    Margin="0,0,0,12"/>
 
-        <ComboBox Grid.Row="1" x:Name="comboMaterial"
+        <ComboBox Grid.Row="1" x:Name="comboAssyCategory"
                   IsEditable="True"
                   Height="32"
                   FontSize="13"
                   Padding="6,4">
-            <sys:String>SUS</sys:String>
-            <sys:String>AL60</sys:String>
-            <sys:String>ULTEM 2300</sys:String>
-            <sys:String>Kapton Film</sys:String>
+            <sys:String>LID Assy</sys:String>
+            <sys:String>Elastomer Assy.</sys:String>
+            <sys:String>BSS Assy.</sys:String>
+            <sys:String>Device &amp; PCB</sys:String>
+            <sys:String>FRAME bolt</sys:String>
         </ComboBox>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">

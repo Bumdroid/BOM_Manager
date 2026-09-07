@@ -14,11 +14,12 @@ namespace BOMManager.Utils
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("No.,Name of Part,Drawing No.,Material,Q'TY,Rev.,설명충,REMARK,File Name");
+                sb.AppendLine("No.,Name of Part,Q'TY,Assy.,Material,Drawing No.,Rev.,설명충,REMARK,File Name");
 
                 foreach (var item in items)
                 {
                     string name = EscapeCsv(item.PartName);
+                    string assy = EscapeCsv(item.AssyCategory);
                     string dwg = EscapeCsv(item.DrawingNo);
                     string mat = EscapeCsv(item.Material);
                     string rev = EscapeCsv(item.Rev);
@@ -26,7 +27,7 @@ namespace BOMManager.Utils
                     string rem = EscapeCsv(item.Remark);
                     string file = EscapeCsv(item.FileName);
 
-                    sb.AppendLine($"{item.ItemNo},{name},{dwg},{mat},{item.Qty},{rev},{exp},{rem},{file}");
+                    sb.AppendLine($"{item.ItemNo},{name},{item.Qty},{assy},{mat},{dwg},{rev},{exp},{rem},{file}");
                 }
 
                 // UTF-8 with BOM for Korean Excel compatibility
@@ -181,13 +182,14 @@ namespace BOMManager.Utils
             sb.AppendLine("  <cols>");
             sb.AppendLine("    <col min=\"1\" max=\"1\" width=\"8\" customWidth=\"1\"/>");
             sb.AppendLine("    <col min=\"2\" max=\"2\" width=\"35\" customWidth=\"1\"/>");
-            sb.AppendLine("    <col min=\"3\" max=\"3\" width=\"25\" customWidth=\"1\"/>");
+            sb.AppendLine("    <col min=\"3\" max=\"3\" width=\"10\" customWidth=\"1\"/>");
             sb.AppendLine("    <col min=\"4\" max=\"4\" width=\"18\" customWidth=\"1\"/>");
-            sb.AppendLine("    <col min=\"5\" max=\"5\" width=\"10\" customWidth=\"1\"/>");
-            sb.AppendLine("    <col min=\"6\" max=\"6\" width=\"10\" customWidth=\"1\"/>");
-            sb.AppendLine("    <col min=\"7\" max=\"7\" width=\"25\" customWidth=\"1\"/>");
-            sb.AppendLine("    <col min=\"8\" max=\"8\" width=\"30\" customWidth=\"1\"/>");
-            sb.AppendLine("    <col min=\"9\" max=\"9\" width=\"25\" customWidth=\"1\"/>");
+            sb.AppendLine("    <col min=\"5\" max=\"5\" width=\"18\" customWidth=\"1\"/>");
+            sb.AppendLine("    <col min=\"6\" max=\"6\" width=\"25\" customWidth=\"1\"/>");
+            sb.AppendLine("    <col min=\"7\" max=\"7\" width=\"10\" customWidth=\"1\"/>");
+            sb.AppendLine("    <col min=\"8\" max=\"8\" width=\"25\" customWidth=\"1\"/>");
+            sb.AppendLine("    <col min=\"9\" max=\"9\" width=\"30\" customWidth=\"1\"/>");
+            sb.AppendLine("    <col min=\"10\" max=\"10\" width=\"25\" customWidth=\"1\"/>");
             sb.AppendLine("  </cols>");
             sb.AppendLine("  <sheetData>");
 
@@ -206,8 +208,8 @@ namespace BOMManager.Utils
 
             // Row 4: Header
             sb.AppendLine("    <row r=\"4\" ht=\"26\" customHeight=\"1\">");
-            string[] headers = { "No.", "Name of Part", "Drawing No.", "Material", "Q'TY", "Rev.", "설명충", "REMARK", "File Name" };
-            char[] colLetters = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I' };
+            string[] headers = { "No.", "Name of Part", "Q'TY", "Assy.", "Material", "Drawing No.", "Rev.", "설명충", "REMARK", "File Name" };
+            string[] colLetters = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J" };
             for (int i = 0; i < headers.Length; i++)
             {
                 sb.AppendLine($"      <c r=\"{colLetters[i]}4\" s=\"3\" t=\"inlineStr\"><is><t>{EscapeXml(headers[i])}</t></is></c>");
@@ -222,21 +224,22 @@ namespace BOMManager.Utils
                 sb.AppendLine($"    <row r=\"{rowIndex}\" ht=\"22\" customHeight=\"1\">");
                 sb.AppendLine($"      <c r=\"A{rowIndex}\" s=\"{styleId}\"><v>{item.ItemNo}</v></c>");
                 sb.AppendLine($"      <c r=\"B{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.PartNameDisplay)}</t></is></c>");
-                sb.AppendLine($"      <c r=\"C{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.DrawingNo)}</t></is></c>");
-                sb.AppendLine($"      <c r=\"D{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Material)}</t></is></c>");
-                sb.AppendLine($"      <c r=\"E{rowIndex}\" s=\"{styleId}\"><v>{item.Qty}</v></c>");
-                sb.AppendLine($"      <c r=\"F{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Rev)}</t></is></c>");
-                sb.AppendLine($"      <c r=\"G{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Explanation)}</t></is></c>");
-                sb.AppendLine($"      <c r=\"H{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Remark)}</t></is></c>");
-                sb.AppendLine($"      <c r=\"I{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.FileName)}</t></is></c>");
+                sb.AppendLine($"      <c r=\"C{rowIndex}\" s=\"{styleId}\"><v>{item.Qty}</v></c>");
+                sb.AppendLine($"      <c r=\"D{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.AssyCategory)}</t></is></c>");
+                sb.AppendLine($"      <c r=\"E{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Material)}</t></is></c>");
+                sb.AppendLine($"      <c r=\"F{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.DrawingNo)}</t></is></c>");
+                sb.AppendLine($"      <c r=\"G{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Rev)}</t></is></c>");
+                sb.AppendLine($"      <c r=\"H{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Explanation)}</t></is></c>");
+                sb.AppendLine($"      <c r=\"I{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.Remark)}</t></is></c>");
+                sb.AppendLine($"      <c r=\"J{rowIndex}\" s=\"{styleId}\" t=\"inlineStr\"><is><t>{EscapeXml(item.FileName)}</t></is></c>");
                 sb.AppendLine("    </row>");
                 rowIndex++;
             }
 
             sb.AppendLine("  </sheetData>");
             sb.AppendLine("  <mergeCells count=\"2\">");
-            sb.AppendLine("    <mergeCell ref=\"A1:I1\"/>");
-            sb.AppendLine("    <mergeCell ref=\"A2:I2\"/>");
+            sb.AppendLine("    <mergeCell ref=\"A1:J1\"/>");
+            sb.AppendLine("    <mergeCell ref=\"A2:J2\"/>");
             sb.AppendLine("  </mergeCells>");
             sb.AppendLine("</worksheet>");
 
