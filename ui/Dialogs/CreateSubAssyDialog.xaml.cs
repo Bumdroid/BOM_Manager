@@ -23,11 +23,11 @@ namespace BOMManager.UI.Dialogs
             System.Collections.Generic.List<string> options;
             if (pCat.Contains("ELASTOMER") || pName.Contains("ELASTOMER"))
             {
-                options = new System.Collections.Generic.List<string> { "FRAME ASSY", "BOTTOM COVER ASSY" };
+                options = new System.Collections.Generic.List<string> { "FRAME ASSY", "BOTTOM COVER ASSY", "Etc." };
             }
             else
             {
-                options = new System.Collections.Generic.List<string> { "LID ASSY", "ELASTOMER ASSY", "BSS ASSY" };
+                options = new System.Collections.Generic.List<string> { "LID ASSY", "ELASTOMER ASSY", "BSS ASSY", "Etc." };
             }
 
             foreach (var opt in options)
@@ -62,16 +62,16 @@ namespace BOMManager.UI.Dialogs
             string name = "";
             if (cboSubAssyName.SelectedItem is ComboBoxItem cbi)
             {
-                name = cbi.Content as string ?? "";
+                name = (cbi.Content as string ?? "").Trim();
             }
-            else
+            if (string.IsNullOrEmpty(name))
             {
                 name = (cboSubAssyName.Text ?? "").Trim();
             }
 
-            if (string.IsNullOrEmpty(name))
+            if (string.IsNullOrEmpty(name) || name.Equals("Etc.", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show("Sub-Assy 이름을 선택해주세요.", "입력 확인", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("생성할 Sub-Assy 이름을 선택해주세요.", "입력 확인", MessageBoxButton.OK, MessageBoxImage.Warning);
                 cboSubAssyName.Focus();
                 return;
             }

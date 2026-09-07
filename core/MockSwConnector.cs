@@ -68,7 +68,30 @@ namespace BOMManager.Core
         public bool SetComponentsTransparency(IEnumerable<BOMItem> targetItems, IEnumerable<BOMItem> allItems, bool isolateMode = true)
         {
             var targets = new HashSet<BOMItem>(targetItems);
-            foreach (var item in allItems)
+            var allList = allItems.ToList();
+
+            var targetSubs = allList.Where(i => targets.Contains(i) && i.IsSubassembly).ToList();
+            foreach (var sub in targetSubs)
+            {
+                int subIdx = allList.IndexOf(sub);
+                if (subIdx >= 0)
+                {
+                    int subLevel = sub.Level;
+                    for (int j = subIdx + 1; j < allList.Count; j++)
+                    {
+                        if (allList[j].Level > subLevel)
+                        {
+                            targets.Add(allList[j]);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            foreach (var item in allList)
             {
                 item.IsOpaque = targets.Contains(item);
             }
@@ -91,6 +114,139 @@ namespace BOMManager.Core
                 return (false, "파일 경로가 지정되지 않았습니다.");
             }
             return (true, $"가상 모드: '{Path.GetFileName(filePath)}' 문서를 성공적으로 열었습니다.");
+        }
+
+        public (bool Success, int CreatedCount, List<string> Messages) ApplySubAssembliesToFile(IEnumerable<BOMItem> allItems, string? baseDirectory = null)
+        {
+            var messages = new List<string>();
+            int createdCount = 0;
+            string baseDir = !string.IsNullOrEmpty(baseDirectory) ? baseDirectory! : @"C:\CAD_Projects\PumpUnit";
+
+            var itemsList = allItems.ToList();
+            var subAssies = itemsList.Where(i => i.IsSubassembly && i.ItemNo > 0).ToList();
+
+            foreach (var sub in subAssies)
+            {
+                string safeName = string.Concat(sub.PartName.Split(Path.GetInvalidFileNameChars())).Trim();
+                if (string.IsNullOrWhiteSpace(safeName)) safeName = $"SubAssy_{sub.ItemNo}";
+                if (!safeName.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase))
+                {
+                    safeName += ".sldasm";
+                }
+                sub.FileName = safeName;
+                try
+                {
+                    sub.FilePath = Path.Combine(baseDir, safeName);
+                }
+                catch
+                {
+                    sub.FilePath = @"C:\Temp\" + safeName;
+                }
+                sub.IsModified = true;
+                createdCount++;
+
+                // 하위 파트 카운트 집계
+                int childCount = 0;
+                int pIdx = itemsList.IndexOf(sub);
+                if (pIdx >= 0)
+                {
+                    for (int j = pIdx + 1; j < itemsList.Count; j++)
+                    {
+                        if (itemsList[j].Level > sub.Level) childCount++;
+                        else break;
+                    }
+                }
+
+                messages.Add($"'{sub.PartName}' (하위 부품 {childCount}개) -> '{safeName}' 생성 및 모델트리 적용");
+            }
+
+            if (createdCount == 0)
+            {
+                messages.Add("적용할 Sub-Assy가 없습니다. [➕ Sub-Assy 만들기]로 서브어셈블리를 추가해주세요.");
+            }
+
+            return (true, createdCount, messages);
+        }
+
+        public (bool Success, int CopiedCount, string TargetAuto3DDir, List<string> Messages) ExportOrganizedAuto3DFiles(IEnumerable<BOMItem> allItems, string? baseDirectory = null)
+        {
+            var messages = new List<string>();
+            int copiedCount = 0;
+            string baseDir = !string.IsNullOrEmpty(baseDirectory) ? baseDirectory! : @"C:\CAD_Projects\PumpUnit";
+            string auto3DDir = Path.Combine(baseDir, "Auto_3D");
+
+            try
+            {
+                if (!Directory.Exists(auto3DDir))
+                {
+                    Directory.CreateDirectory(auto3DDir);
+                }
+            }
+            catch { }
+
+            var itemsList = allItems?.ToList() ?? new List<BOMItem>();
+            var parentStack = new List<(int Level, string FolderPath)>
+            {
+                (0, auto3DDir)
+            };
+
+            // Root Assembly Mock File
+            string rootFile = Path.Combine(auto3DDir, "PumpUnit_Root.sldasm");
+            try
+            {
+                File.WriteAllText(rootFile, "MOCK ROOT ASSEMBLY");
+                copiedCount++;
+                messages.Add($"[Root Assy] -> Auto_3D\\PumpUnit_Root.sldasm");
+            }
+            catch { }
+
+            foreach (var item in itemsList)
+            {
+                int itemLevel = item.Level;
+                while (parentStack.Count > 1 && parentStack.Last().Level >= itemLevel)
+                {
+                    parentStack.RemoveAt(parentStack.Count - 1);
+                }
+                string currentParentDir = parentStack.Last().FolderPath;
+
+                if (item.IsSubassembly)
+                {
+                    string safeSubName = string.Concat(item.PartName.Split(Path.GetInvalidFileNameChars())).Trim();
+                    if (string.IsNullOrWhiteSpace(safeSubName)) safeSubName = $"SubAssy_{item.ItemNo}";
+                    string subFolder = Path.Combine(currentParentDir, safeSubName);
+                    try { Directory.CreateDirectory(subFolder); } catch { }
+
+                    string fn = safeSubName.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase) ? safeSubName : safeSubName + ".sldasm";
+                    string subDest = Path.Combine(subFolder, fn);
+                    try
+                    {
+                        File.WriteAllText(subDest, $"MOCK SUBASSEMBLY: {item.PartName}");
+                        copiedCount++;
+                        string rel = subDest.Replace(baseDir, "").TrimStart('\\', '/');
+                        messages.Add($"[Sub{item.Level} Assy] '{item.PartName}' -> {rel}");
+                    }
+                    catch { }
+
+                    parentStack.Add((itemLevel, subFolder));
+                }
+                else
+                {
+                    string safePartName = string.Concat(item.PartName.Split(Path.GetInvalidFileNameChars())).Trim();
+                    string fn = safePartName.EndsWith(".sldprt", StringComparison.OrdinalIgnoreCase) ? safePartName : safePartName + ".sldprt";
+                    string partDest = Path.Combine(currentParentDir, fn);
+                    try
+                    {
+                        Directory.CreateDirectory(currentParentDir);
+                        File.WriteAllText(partDest, $"MOCK PART: {item.PartName}");
+                        copiedCount++;
+                        string rel = partDest.Replace(baseDir, "").TrimStart('\\', '/');
+                        messages.Add($"[Part] '{item.PartName}' -> {rel}");
+                    }
+                    catch { }
+                }
+            }
+
+            return (true, copiedCount, auto3DDir, messages);
         }
     }
 }

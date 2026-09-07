@@ -409,10 +409,10 @@
                                 Margin="0,0,38,0"
                                 FontWeight="Bold"
                                 FontSize="12"
-                                Background="#2563EB"
-                                Foreground="#FFFFFF"
-                                BorderBrush="#1D4ED8"
-                                BorderThickness="1"
+                                Background="#FFFFFF"
+                                Foreground="#1D4ED8"
+                                BorderBrush="#2563EB"
+                                BorderThickness="2.5"
                                 Cursor="Hand"
                                 Click="BtnSummary_Click"
                                 ToolTip="전체 BOM 요약 화면 (부품명, 재질, 수량, Rev, 설명충, 비고)을 확인합니다.">
@@ -451,35 +451,8 @@
                             <TextBlock Text="➔" Foreground="#1E40AF" FontSize="12" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
                         </Border>
 
-                        <!-- Step 2: ② 도번 입력 -->
+                        <!-- Step 2: ② 도번, 재질 입력 -->
                         <Button x:Name="btnStep2DrawingNo"
-                                Height="34"
-                                MinWidth="130"
-                                Padding="16,0"
-                                FontWeight="Normal"
-                                FontSize="12"
-                                Background="#FFFFFF"
-                                Foreground="#475569"
-                                BorderBrush="#CBD5E1"
-                                BorderThickness="1"
-                                Cursor="Hand"
-                                Click="BtnStep2DrawingNo_Click"
-                                ToolTip="[Step 2] 파트별 도면번호(Drawing No. OOO-PPPPPGBBBXXXX), Revision, 설명충을 집중 입력합니다.">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="5"/>
-                                </Style>
-                            </Button.Resources>
-                            <TextBlock Text="② 도번 입력" FontSize="13" VerticalAlignment="Center"/>
-                        </Button>
-
-                        <!-- High-Visibility Step Arrow 2 -> 3 -->
-                        <Border Background="#E2E8F0" CornerRadius="10" Width="22" Height="22" Margin="10,0" VerticalAlignment="Center">
-                            <TextBlock Text="➔" Foreground="#1E40AF" FontSize="12" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
-                        </Border>
-
-                        <!-- Step 3: ③ 기타(재질 등..) -->
-                        <Button x:Name="btnStep3Other"
                                 Height="34"
                                 MinWidth="140"
                                 Padding="16,0"
@@ -490,19 +463,46 @@
                                 BorderBrush="#CBD5E1"
                                 BorderThickness="1"
                                 Cursor="Hand"
-                                Click="BtnStep3Other_Click"
-                                ToolTip="[Step 3] 재질(Material), 비고(REMARK)를 설정하고 SolidWorks 모델 저장 및 Excel/CSV로 내보냅니다.">
+                                Click="BtnStep2DrawingNo_Click"
+                                ToolTip="[Step 2] 도번, 재질 입력">
                             <Button.Resources>
                                 <Style TargetType="Border">
                                     <Setter Property="CornerRadius" Value="5"/>
                                 </Style>
                             </Button.Resources>
-                            <TextBlock Text="③ 기타(재질 등..)" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="② 도번, 재질 입력" FontSize="13" VerticalAlignment="Center"/>
+                        </Button>
+
+                        <!-- High-Visibility Step Arrow 2 -> 3 -->
+                        <Border Background="#E2E8F0" CornerRadius="10" Width="22" Height="22" Margin="10,0" VerticalAlignment="Center">
+                            <TextBlock Text="➔" Foreground="#1E40AF" FontSize="12" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                        </Border>
+
+                        <!-- Step 3: ③ 무언가 썸팅(개발중) -->
+                        <Button x:Name="btnStep3Other"
+                                Height="34"
+                                MinWidth="150"
+                                Padding="16,0"
+                                FontWeight="Normal"
+                                FontSize="12"
+                                Background="#FFFFFF"
+                                Foreground="#475569"
+                                BorderBrush="#CBD5E1"
+                                BorderThickness="1"
+                                Cursor="Hand"
+                                Click="BtnStep3Other_Click"
+                                ToolTip="[Step 3] 무언가 썸팅 (현재 개발중)">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="5"/>
+                                </Style>
+                            </Button.Resources>
+                            <TextBlock Text="③ 무언가 썸팅(개발중)" FontSize="13" VerticalAlignment="Center"/>
                         </Button>
                     </StackPanel>
                 </Border>
 
-                <!-- 2) 하단 툴바: 통계 정보 (고유부품, 총수량, 수정됨) & 액션 버튼 (어셈블리 열기, 펼치기, 접기, 전체 표시, 새로고침) -->
+                <!-- 2) 하단 툴바: 통계 정보 (고유부품, 총수량, 수정됨) & 액션 버튼 (어셈블리 열기, 전체 표시, 새로고침) -->
                 <Grid Margin="2,2,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -521,32 +521,8 @@
                         <TextBlock x:Name="lblModifiedCount" Text="0" FontSize="15" FontWeight="Bold" Foreground="#D97706" Margin="5,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- Right: Quick Action Buttons (Apply All, 어셈블리 열기, 전체 펼치기, 전체 접기, 전체 표시, 새로고침) -->
+                    <!-- Right: Quick Action Buttons (새로고침) -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button x:Name="btnApplyAllTop"
-                                Content="💾 Apply All"
-                                Height="28"
-                                Padding="12,0"
-                                Margin="0,0,8,0"
-                                FontWeight="Bold"
-                                FontSize="12"
-                                Background="#2563EB"
-                                Foreground="#FFFFFF"
-                                BorderBrush="#1D4ED8"
-                                BorderThickness="1"
-                                Cursor="Hand"
-                                Click="BtnApplyAll_Click"
-                                ToolTip="수정한 모든 속성(재질, 도번, Assy 등)을 SolidWorks 모델에 저장/적용하고 Summary 요약 화면으로 이동합니다.">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="4"/>
-                                </Style>
-                            </Button.Resources>
-                        </Button>
-                        <Button x:Name="btnOpenAssembly" Content="📂 어셈블리 열기" Margin="0,0,5,0" Click="BtnOpenAssembly_Click" ToolTip="SolidWorks에서 로드할 어셈블리(.sldasm) 파일을 선택하여 직접 엽니다."/>
-                        <Button x:Name="btnExpandAll" Content="📂 전체 펼치기" Margin="0,0,5,0" Click="BtnExpandAll_Click" ToolTip="모든 서브어셈블리 하위 부품 트리를 펼칩니다."/>
-                        <Button x:Name="btnCollapseAll" Content="📁 전체 접기" Margin="0,0,5,0" Click="BtnCollapseAll_Click" ToolTip="모든 서브어셈블리 하위 부품 트리를 접습니다."/>
-                        <Button x:Name="btnShowAll" Content="🌐 전체 표시" Margin="0,0,5,0" Click="BtnShowAll_Click" ToolTip="숨겨진 모든 부품을 다시 SolidWorks 화면에 표시합니다."/>
                         <Button x:Name="btnRefresh" Content="🔄 새로고침" Click="BtnRefresh_Click" ToolTip="현재 활성 SolidWorks 어셈블리에서 데이터를 다시 읽어옵니다."/>
                     </StackPanel>
                 </Grid>
@@ -643,23 +619,37 @@
                                             BorderThickness="0"
                                             Cursor="Hand"
                                             Click="BtnIsolateRow_Click"
-                                            ToolTip="클릭 시 SolidWorks에서 이 파트만 불투명(초록색 원)으로 강조하고 나머지는 투명(붉은색 원)화합니다.">
-                                        <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <!-- 불투명 강조 상태: 초록색 원 (Green Circle) -->
-                                            <Ellipse Width="12" Height="12"
-                                                     Fill="#10B981"
-                                                     Stroke="#059669"
-                                                     StrokeThickness="1.5"
-                                                     SnapsToDevicePixels="True"
-                                                     Visibility="{Binding IsOpaque, Converter={StaticResource BoolToVis}}"/>
+                                            ToolTip="클릭 시 SolidWorks에서 이 파트만 불투명(눈 뜸)으로 강조하고 나머지는 투명(눈 감음)화합니다.">
+                                        <Grid Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- 불투명 강조 상태: 눈 뜬 눈알 (Black Open Eye) -->
+                                            <Canvas Width="16" Height="16" Visibility="{Binding IsOpaque, Converter={StaticResource BoolToVis}}">
+                                                <Canvas.LayoutTransform>
+                                                    <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                                                </Canvas.LayoutTransform>
+                                                <Path Stroke="#0F172A" StrokeThickness="1.5" Fill="White"
+                                                      Data="M 1.5,8 C 4,3 12,3 14.5,8 C 12,13 4,13 1.5,8 Z"/>
+                                                <Ellipse Width="5.5" Height="5.5" Fill="#0F172A"
+                                                         Canvas.Left="5.25" Canvas.Top="5.25"/>
+                                            </Canvas>
 
-                                            <!-- 투명 상태: 붉은색 원 (Red Circle) -->
-                                            <Ellipse Width="12" Height="12"
-                                                     Fill="#EF4444"
-                                                     Stroke="#DC2626"
-                                                     StrokeThickness="1.5"
-                                                     SnapsToDevicePixels="True"
-                                                     Visibility="{Binding IsOpaque, Converter={StaticResource BoolToVisInvert}}"/>
+                                            <!-- 투명 상태: 눈 감은 눈알 (Set B: Black Curved Line with Lashes) -->
+                                            <Canvas Width="16" Height="16" Visibility="{Binding IsOpaque, Converter={StaticResource BoolToVisInvert}}">
+                                                <Canvas.LayoutTransform>
+                                                    <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                                                </Canvas.LayoutTransform>
+                                                <Path Stroke="#0F172A" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Data="M 2,6.5 C 4.5,11.5 11.5,11.5 14,6.5"/>
+                                                <Path Stroke="#0F172A" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Data="M 3,8 L 1.5,10.5"/>
+                                                <Path Stroke="#0F172A" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Data="M 5.5,9.8 L 4.5,12.8"/>
+                                                <Path Stroke="#0F172A" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Data="M 8,10.5 L 8,13.8"/>
+                                                <Path Stroke="#0F172A" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Data="M 10.5,9.8 L 11.5,12.8"/>
+                                                <Path Stroke="#0F172A" StrokeThickness="1.3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                      Data="M 13,8 L 14.5,10.5"/>
+                                            </Canvas>
                                         </Grid>
                                     </Button>
                                 </DataTemplate>
@@ -933,16 +923,7 @@
 
                 <Button x:Name="btnExportCsv"
                         Content="📄 CSV 내보내기"
-                        Margin="0,0,10,0"
                         Click="BtnExportCsv_Click"/>
-
-                <Button x:Name="btnApplyAllBottom"
-                        Content="💾 Apply All (전체 적용 &amp; SolidWorks 저장)"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        Padding="14,6"
-                        FontWeight="Bold"
-                        Click="BtnApplyAll_Click"
-                        ToolTip="입력/수정한 모든 부품명, 도면번호, 재질, 수량, 비고를 SolidWorks 모델에 직접 저장하고 Summary 화면으로 이동합니다."/>
             </StackPanel>
         </Grid>
 
@@ -958,5 +939,60 @@
                        FontSize="12"
                        Foreground="#334155"/>
         </Border>
+
+        <!-- 6. Full-Screen Modal Loading & SolidWorks Lock Overlay -->
+        <Grid x:Name="gridLoadingOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              Background="#990F172A"
+              Visibility="Collapsed"
+              IsHitTestVisible="True"
+              Margin="-16,-16,-16,-16">
+            <Border Background="#FFFFFF"
+                    BorderBrush="#3B82F6"
+                    BorderThickness="2"
+                    CornerRadius="14"
+                    Padding="32,28"
+                    Width="480"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" Color="#0F172A" Opacity="0.35" ShadowDepth="6"/>
+                </Border.Effect>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- Top Lock / Processing Badge -->
+                    <Border Background="#EFF6FF"
+                            BorderBrush="#BFDBFE"
+                            BorderThickness="1"
+                            CornerRadius="20"
+                            Padding="14,6"
+                            HorizontalAlignment="Center"
+                            Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="🔒 SolidWorks 조작 방지 잠금 활성화됨"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#1D4ED8"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Title -->
+                    <TextBlock x:Name="txtLoadingTitle"
+                               Text="사본 저장 및 서브어셈블리 구성 중..."
+                               FontSize="17"
+                               FontWeight="Bold"
+                               Foreground="#0F172A"
+                               TextAlignment="Center"
+                               Margin="0,0,0,18"/>
+
+                    <!-- Modern Indeterminate Progress Bar -->
+                    <ProgressBar IsIndeterminate="True"
+                                 Height="8"
+                                 Foreground="#2563EB"
+                                 Background="#E2E8F0"
+                                 BorderThickness="0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

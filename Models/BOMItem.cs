@@ -28,12 +28,38 @@ namespace BOMManager.Models
         private bool _isOpaque = true;
         private bool _isSubassembly = false;
         private bool _isExpanded = false;
+        private bool _isApproved = false;
+        private bool _isUserCreated = false;
         private int _level = 0;
         private ObservableCollection<string> _availableAssyCategories = new();
+
+        public bool IsUserCreated
+        {
+            get => _isUserCreated || (!string.IsNullOrEmpty(_remark) && _remark.Contains("수동 생성된"));
+            set
+            {
+                if (SetProperty(ref _isUserCreated, value))
+                {
+                    OnPropertyChanged(nameof(IsUserCreated));
+                }
+            }
+        }
 
         public BOMItem()
         {
             UpdateAvailableAssyCategories(null);
+        }
+
+        public bool IsApproved
+        {
+            get => _isApproved;
+            set
+            {
+                if (SetProperty(ref _isApproved, value))
+                {
+                    OnPropertyChanged(nameof(IsApproved));
+                }
+            }
         }
 
         // 원본 값 저장 (수정 여부 감지용)

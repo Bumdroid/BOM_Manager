@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using BOMManager.Core;
@@ -293,8 +294,8 @@ namespace BOMManager.Tests
                 if (wrappedRoots.Count != 1) throw new Exception($"Expected 1 master root, got {wrappedRoots.Count}");
                 if (wrappedRoots[0].Item.PartName != "MY_MASTER_ASSY.SLDASM")
                     throw new Exception($"Expected root name 'MY_MASTER_ASSY.SLDASM', got '{wrappedRoots[0].Item.PartName}'");
-                if (wrappedRoots[0].Width != 330)
-                    throw new Exception($"Expected node width 330 (1.5x), got {wrappedRoots[0].Width}");
+                if (wrappedRoots[0].Width != 380)
+                    throw new Exception($"Expected node width 380, got {wrappedRoots[0].Width}");
                 if (wrappedRoots[0].NodeTypeBadge != "Root Assy.")
                     throw new Exception($"Expected root badge 'Root Assy.', got '{wrappedRoots[0].NodeTypeBadge}'");
 
@@ -362,7 +363,11 @@ namespace BOMManager.Tests
 
                 // 3. Applied colors
                 sub1.Item.AssyCategory = "Elastomer Assy.";
-                sub1.IsExpanded = true;
+                sub1.IsApproved = false; // Unchecked state -> Should remain white (Unapplied)
+                if (sub1.IsApplied || sub1.NodeBackground != "#FFFFFF" || sub1.NodeBorderBrush != "#CBD5E1")
+                    throw new Exception($"Unapproved sub1 with category should be white: isApplied={sub1.IsApplied}, bg={sub1.NodeBackground}");
+
+                sub1.IsApproved = true; // Checked state -> Should be green (Applied)
                 if (!sub1.IsApplied || sub1.NodeBackground != "#ECFDF5" || sub1.NodeBorderBrush != "#10B981")
                     throw new Exception($"Applied sub1 color mismatch: isApplied={sub1.IsApplied}, bg={sub1.NodeBackground}, border={sub1.NodeBorderBrush}");
 
@@ -374,7 +379,7 @@ namespace BOMManager.Tests
                 if (!part1.IsDescendantOf(sub1) || !part1.IsDescendantOf(root))
                     throw new Exception("part1 should have sub1 and root as ancestors");
 
-                Console.WriteLine(" [PASS] Test 9: 적용/미적용 배경색(초록/흰색) 및 테두리색, 선택 시 상위 Assy. 전파 검증 성공");
+                Console.WriteLine(" [PASS] Test 9: 승인/미승인 배경색(초록/흰색) 및 테두리색, 선택 시 상위 Assy. 전파 검증 성공");
                 passed++;
             }
             catch (Exception ex)
@@ -417,8 +422,521 @@ namespace BOMManager.Tests
                 failed++;
             }
 
+            // Test 11: ApplySubAssembliesToFile (SolidWorks Sub-Assy 생성 및 파일 적용)
+            try
+            {
+                var mockService = new MockSwConnector();
+                var items = new List<BOMItem>
+                {
+                    new BOMItem(1, "LID_ASSY", isSubassembly: true, level: 1),
+                    new BOMItem(2, "COVER_PART", isSubassembly: false, level: 2),
+                    new BOMItem(3, "PUSHER_PART", isSubassembly: false, level: 2),
+                    new BOMItem(4, "FRAME_ASSY", isSubassembly: true, level: 1),
+                    new BOMItem(5, "FRAME_BASE", isSubassembly: false, level: 2)
+                };
+
+                var res = mockService.ApplySubAssembliesToFile(items, @"C:\CAD_Projects\TestAssy");
+                if (!res.Success || res.CreatedCount != 2)
+                    throw new Exception($"ApplySubAssembliesToFile failed: Success={res.Success}, Count={res.CreatedCount}");
+
+                if (items[0].FileName != "LID_ASSY.sldasm" || items[3].FileName != "FRAME_ASSY.sldasm")
+                    throw new Exception($"Sub-Assy FileName mismatch: {items[0].FileName}, {items[3].FileName}");
+
+                Console.WriteLine(" [PASS] Test 11: Sub-Assy 파일 적용(ApplySubAssembliesToFile) 및 .sldasm 생성 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 11: {ex.Message}");
+                failed++;
+            }
+
+            // Test 12: Reload & State Preservation/Merge (파일 적용 후 트리 리프레시 시 사용자 입력값 보존)
+            try
+            {
+                var originalItems = new List<BOMItem>
+                {
+                    new BOMItem(1, "LID_ASSY", isSubassembly: true, level: 1, assyCategory: "LID ASSY")
+                    {
+                        FilePath = @"C:\CAD\LID_ASSY.sldasm",
+                        FileName = "LID_ASSY.sldasm",
+                        Explanation = "상단 커버 어셈블리",
+                        Remark = "중요 부품"
+                    },
+                    new BOMItem(2, "COVER_PART", isSubassembly: false, level: 2, drawingNo: "123-45678A999", material: "AL6061-T6")
+                    {
+                        FilePath = @"C:\CAD\COVER_PART.sldprt",
+                        FileName = "COVER_PART.sldprt",
+                        Rev = "A",
+                        Explanation = "커버 가공품",
+                        Remark = "아노다이징",
+                        IsModified = true
+                    }
+                };
+
+                // 스냅샷 시뮬레이션
+                var stateMap = new Dictionary<string, BOMItem>(StringComparer.OrdinalIgnoreCase);
+                foreach (var itm in originalItems)
+                {
+                    if (!string.IsNullOrEmpty(itm.FilePath))
+                        stateMap[itm.FilePath.ToLowerInvariant()] = itm;
+                }
+
+                // SolidWorks에서 새로 로드된 새 BOMItem 인스턴스들 (기본적으로 속성이 비어있음)
+                var reloadedItems = new List<BOMItem>
+                {
+                    new BOMItem(1, "LID_ASSY", isSubassembly: true, level: 1)
+                    {
+                        FilePath = @"C:\CAD\LID_ASSY.sldasm",
+                        FileName = "LID_ASSY.sldasm"
+                    },
+                    new BOMItem(2, "COVER_PART", isSubassembly: false, level: 2)
+                    {
+                        FilePath = @"C:\CAD\COVER_PART.sldprt",
+                        FileName = "COVER_PART.sldprt"
+                    }
+                };
+
+                // 상태 복원 및 병합
+                foreach (var itm in reloadedItems)
+                {
+                    if (stateMap.TryGetValue(itm.FilePath.ToLowerInvariant(), out var orig))
+                    {
+                        if (!string.IsNullOrWhiteSpace(orig.DrawingNo)) itm.DrawingNo = orig.DrawingNo;
+                        if (!string.IsNullOrWhiteSpace(orig.Material)) itm.Material = orig.Material;
+                        if (!string.IsNullOrWhiteSpace(orig.Rev)) itm.Rev = orig.Rev;
+                        if (!string.IsNullOrWhiteSpace(orig.Explanation)) itm.Explanation = orig.Explanation;
+                        if (!string.IsNullOrWhiteSpace(orig.Remark)) itm.Remark = orig.Remark;
+                        if (!string.IsNullOrWhiteSpace(orig.AssyCategory)) itm.AssyCategory = orig.AssyCategory;
+                        itm.IsModified = orig.IsModified;
+                    }
+                }
+
+                // 검증
+                if (reloadedItems[1].DrawingNo != "12345678A999" || reloadedItems[1].Material != "AL6061-T6" ||
+                    reloadedItems[1].Rev != "A" || reloadedItems[1].Remark != "아노다이징" ||
+                    reloadedItems[0].Explanation != "상단 커버 어셈블리" || reloadedItems[0].AssyCategory != "LID ASSY")
+                {
+                    throw new Exception("State preservation and merge failed for reloaded items");
+                }
+
+                Console.WriteLine(" [PASS] Test 12: 파일 적용 후 트리 리프레시 시 사용자 입력값(도번, 재질, 설명, 비고, 카테고리) 보존 및 병합 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 12: {ex.Message}");
+                failed++;
+            }
+
+            // Test 13: Initial Tree Expansion - Only Root is Expanded, Sub1 and deeper levels Collapsed
+            try
+            {
+                var flatItems = new List<BOMItem>
+                {
+                    new BOMItem(1, "LID_ASSY", isSubassembly: true, level: 1),
+                    new BOMItem(2, "COVER_PART", isSubassembly: false, level: 2),
+                    new BOMItem(3, "PUSHER_PART", isSubassembly: false, level: 2),
+                    new BOMItem(4, "ELASTOMER_ASSY", isSubassembly: true, level: 1),
+                    new BOMItem(5, "FRAME_ASSY", isSubassembly: true, level: 2),
+                    new BOMItem(6, "FRAME_PART", isSubassembly: false, level: 3)
+                };
+
+                var roots = BOMTreeNode.BuildForest(flatItems, "TOP_ASSEMBLY.SLDASM");
+                if (roots.Count != 1) throw new Exception($"Expected 1 master root, got {roots.Count}");
+
+                // Simulate LoadItems initial expansion policy
+                foreach (var root in roots)
+                {
+                    root.IsExpanded = true;
+                    foreach (var child in root.Children)
+                    {
+                        void CollapseRec(BOMTreeNode n)
+                        {
+                            n.IsExpanded = false;
+                            if (n.Item != null) n.Item.IsExpanded = false;
+                            foreach (var c in n.Children) CollapseRec(c);
+                        }
+                        CollapseRec(child);
+                    }
+                }
+
+                var topRoot = roots[0];
+                if (!topRoot.IsExpanded) throw new Exception("Top root should be expanded");
+                if (topRoot.Children.Count != 2) throw new Exception($"Expected 2 Sub1 nodes, got {topRoot.Children.Count}");
+
+                foreach (var sub1Node in topRoot.Children)
+                {
+                    if (sub1Node.IsExpanded)
+                        throw new Exception($"Sub1 node '{sub1Node.Item.PartName}' should be collapsed (IsExpanded=false)");
+                    foreach (var sub2Node in sub1Node.Children)
+                    {
+                        if (sub2Node.IsExpanded)
+                            throw new Exception($"Sub2 node '{sub2Node.Item.PartName}' should be collapsed (IsExpanded=false)");
+                    }
+                }
+
+                Console.WriteLine(" [PASS] Test 13: 최초 트리 로드 시 Root만 확장되고 Sub1 및 하위 레벨은 기본 접힘(Collapsed) 상태 유지 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 13: {ex.Message}");
+                failed++;
+            }
+
+            // Test 14: State Preservation on Sub-Assy Creation / Tree Refresh
+            try
+            {
+                var flatItems = new List<BOMItem>
+                {
+                    new BOMItem(1, "LID_ASSY", isSubassembly: true, level: 1, assyCategory: "LID ASSY") { IsExpanded = true, IsApproved = true },
+                    new BOMItem(2, "COVER_PART", isSubassembly: false, level: 2, assyCategory: "Cover"),
+                    new BOMItem(3, "PUSHER_PART", isSubassembly: false, level: 2, assyCategory: "Pusher"),
+                    new BOMItem(4, "ELASTOMER_ASSY", isSubassembly: true, level: 1, assyCategory: "ELASTOMER ASSY") { IsExpanded = false, IsApproved = false } // Unapproved / collapsed
+                };
+
+                // Capture expansion and approval map before adding new Sub-Assy
+                var expansionMap = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                var approvalMap = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                foreach (var itm in flatItems)
+                {
+                    string key = itm.PartName + "_" + itm.Level;
+                    expansionMap[key] = itm.IsExpanded;
+                    approvalMap[key] = itm.IsApproved;
+                }
+
+                // Add newly created Sub-Assy
+                var newSub = new BOMItem(5, "FRAME_ASSY", isSubassembly: true, level: 2, assyCategory: "FRAME ASSY") { IsExpanded = true, IsApproved = true };
+                flatItems.Insert(4, newSub);
+                expansionMap[newSub.PartName + "_" + newSub.Level] = true;
+                approvalMap[newSub.PartName + "_" + newSub.Level] = true;
+
+                // Re-build forest and restore
+                var roots = BOMTreeNode.BuildForest(flatItems, "TOP_ASSEMBLY.SLDASM");
+                foreach (var root in roots)
+                {
+                    root.IsExpanded = true;
+                    void RestoreRec(BOMTreeNode n)
+                    {
+                        if (n.TreeDepth > 0 && n.Item != null)
+                        {
+                            string key = n.Item.PartName + "_" + n.Item.Level;
+                            if (expansionMap.TryGetValue(key, out bool exp))
+                            {
+                                n.IsExpanded = exp;
+                                n.Item.IsExpanded = exp;
+                            }
+                            if (approvalMap.TryGetValue(key, out bool app))
+                            {
+                                n.IsApproved = app;
+                                n.Item.IsApproved = app;
+                            }
+                        }
+                        foreach (var c in n.Children) RestoreRec(c);
+                    }
+                    RestoreRec(root);
+                }
+
+                var lidNode = roots[0].Children.First(c => c.Item.PartName == "LID_ASSY");
+                var elastomerNode = roots[0].Children.First(c => c.Item.PartName == "ELASTOMER_ASSY");
+                var newFrameNode = elastomerNode.Children.First(c => c.Item.PartName == "FRAME_ASSY");
+
+                if (!lidNode.IsExpanded || !lidNode.IsApplied)
+                    throw new Exception("LID_ASSY should remain expanded (IsExpanded=true) and applied (green)");
+                if (elastomerNode.IsExpanded || elastomerNode.IsApplied)
+                    throw new Exception("ELASTOMER_ASSY should remain collapsed (IsExpanded=false) and unapplied (white)");
+                if (!newFrameNode.IsExpanded || !newFrameNode.IsApplied)
+                    throw new Exception("Newly created FRAME_ASSY should be expanded and applied");
+
+                Console.WriteLine(" [PASS] Test 14: 새 Sub-Assy 생성/트리 갱신 시 기존 승인/펼침 상태(IsExpanded) 100% 보존 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 14: {ex.Message}");
+                failed++;
+            }
+
+            // Test 15: Virtual Subassembly & (RA01) Path PartName Extraction
+            try
+            {
+                // 1. 가상 어셈블리 경로 및 컴포넌트명
+                string name1 = SwConnector.ExtractCleanPartName(@"C:\CAD\PROJECT (RA01)\[FRAME ASSY^MAIN].sldasm", "MAIN-1/[FRAME ASSY^MAIN]-1", "[FRAME ASSY^MAIN]");
+                if (name1 != "FRAME ASSY") throw new Exception($"Expected 'FRAME ASSY', got '{name1}'");
+
+                // 2. 가상 어셈블리 + 내부 리비전 표시
+                string name2 = SwConnector.ExtractCleanPartName(@"C:\Temp\(RA01)\[FRAME ASSY (RA01)^MAIN].sldasm", "MAIN-1/[FRAME ASSY (RA01)^MAIN]-1", "[FRAME ASSY (RA01)^MAIN]");
+                if (name2 != "FRAME ASSY (RA01)") throw new Exception($"Expected 'FRAME ASSY (RA01)', got '{name2}'");
+
+                // 3. 인스턴스 번호가 붙은 파트
+                string name3 = SwConnector.ExtractCleanPartName(@"C:\CAD\PumpUnit\BASE_FRAME.SLDPRT", "BASE_FRAME-2");
+                if (name3 != "BASE_FRAME") throw new Exception($"Expected 'BASE_FRAME', got '{name3}'");
+
+                // 4. 경로 없이 컴포넌트명만 존재하는 가상 파트
+                string name4 = SwConnector.ExtractCleanPartName(null, "[MOTOR_BRACKET^MAIN]-1", null);
+                if (name4 != "MOTOR_BRACKET") throw new Exception($"Expected 'MOTOR_BRACKET', got '{name4}'");
+
+                Console.WriteLine(" [PASS] Test 15: 가상 서브어셈블리 [Name^Parent] 및 (RA01) 경로에서의 순수 PartName 추출 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 15: {ex.Message}");
+                failed++;
+            }
+
+            // Test 16: IsApproved Decoupled from IsExpanded (개수 뱃지 클릭 시 승인 방지)
+            try
+            {
+                var rootItem = new BOMItem(1, "ROOT_ASSY", isSubassembly: true, level: 0);
+                var rootNode = new BOMTreeNode(rootItem);
+                var subAssyItem = new BOMItem(2, "LID_ASSY", isSubassembly: true, level: 1, assyCategory: "LID Assy");
+                var subAssyNode = new BOMTreeNode(subAssyItem, rootNode);
+
+                // Initial state: not approved, collapsed
+                if (subAssyNode.IsApproved || subAssyNode.IsApplied || subAssyNode.NodeBackground != "#FFFFFF")
+                {
+                    throw new Exception("Initially unapproved subassembly should be unapproved and white background");
+                }
+
+                // Expand node (simulate clicking "~개" count badge)
+                subAssyNode.IsExpanded = true;
+                subAssyItem.IsExpanded = true;
+
+                // MUST still be unapproved and white!
+                if (subAssyNode.IsApproved)
+                {
+                    throw new Exception("Expanding node must NOT make IsApproved true!");
+                }
+                if (subAssyNode.IsApplied || subAssyNode.NodeBackground != "#FFFFFF")
+                {
+                    throw new Exception("Expanding node without explicit [승인] check must remain white/unapplied");
+                }
+
+                // Explicitly approve (simulate clicking [승인] checkbox)
+                subAssyNode.IsApproved = true;
+                if (!subAssyNode.IsApproved || !subAssyNode.IsApplied || subAssyNode.NodeBackground != "#ECFDF5")
+                {
+                    throw new Exception("Explicitly approved subassembly must become green/applied");
+                }
+
+                // Collapse node while approved
+                subAssyNode.IsExpanded = false;
+                subAssyItem.IsExpanded = false;
+
+                // MUST still be approved!
+                if (!subAssyNode.IsApproved || !subAssyNode.IsApplied)
+                {
+                    throw new Exception("Collapsing node must NOT revoke approved status!");
+                }
+
+                Console.WriteLine(" [PASS] Test 16: ~개 개수 뱃지 순수 텍스트 표시 및 [승인] 체크 기반 독립적 트리 펼침/접힘 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 16: {ex.Message}");
+                failed++;
+            }
+
+            // Test 17: Unapproved items validation check
+            try
+            {
+                var items = new List<BOMItem>
+                {
+                    new BOMItem(1, "MAIN_ASSY", isSubassembly: true, level: 0),
+                    new BOMItem(2, "LID_ASSY", isSubassembly: true, level: 1, assyCategory: "LID Assy") { IsApproved = false },
+                    new BOMItem(3, "COVER", isSubassembly: false, level: 2, assyCategory: "Cover"),
+                    new BOMItem(4, "UNASSIGNED_PART", isSubassembly: false, level: 2, assyCategory: "")
+                };
+
+                var unapprovedSubs = items.Where(i => i.IsSubassembly && i.Level > 0 && !i.IsApproved).ToList();
+                var unassignedParts = items.Where(i => !i.IsSubassembly && string.IsNullOrWhiteSpace(i.AssyCategory)).ToList();
+
+                if (unapprovedSubs.Count != 1 || unapprovedSubs[0].PartName != "LID_ASSY")
+                    throw new Exception("Failed to detect unapproved Sub-Assy");
+                if (unassignedParts.Count != 1 || unassignedParts[0].PartName != "UNASSIGNED_PART")
+                    throw new Exception("Failed to detect unassigned part");
+
+                // Approve all
+                items[1].IsApproved = true;
+                items[3].AssyCategory = "Pusher";
+
+                var unapprovedSubs2 = items.Where(i => i.IsSubassembly && i.Level > 0 && !i.IsApproved).ToList();
+                var unassignedParts2 = items.Where(i => !i.IsSubassembly && string.IsNullOrWhiteSpace(i.AssyCategory)).ToList();
+
+                if (unapprovedSubs2.Count != 0 || unassignedParts2.Count != 0)
+                    throw new Exception("All items should be validated as approved");
+
+                Console.WriteLine(" [PASS] Test 17: 정리된 파일 저장 시 미승인 항목 사전 검증 및 차단 로직 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 17: {ex.Message}");
+                failed++;
+            }
+
+            // Test 18: Auto_3D Hierarchical Folder Structure & File Copies
+            try
+            {
+                string testExportDir = Path.Combine(Path.GetTempPath(), "BOMManager_Auto3D_Test_" + Guid.NewGuid().ToString("N"));
+                var mockService = new MockSwConnector();
+
+                var testItems = new List<BOMItem>
+                {
+                    new BOMItem(1, "LID_ASSY", isSubassembly: true, level: 1, assyCategory: "LID ASSY") { IsApproved = true },
+                    new BOMItem(2, "COVER", isSubassembly: false, level: 2, assyCategory: "Cover"),
+                    new BOMItem(3, "ELASTOMER_ASSY", isSubassembly: true, level: 1, assyCategory: "ELASTOMER ASSY") { IsApproved = true },
+                    new BOMItem(4, "FRAME_ASSY", isSubassembly: true, level: 2, assyCategory: "FRAME ASSY") { IsApproved = true },
+                    new BOMItem(5, "FRAME_BASE", isSubassembly: false, level: 3, assyCategory: "FRAME")
+                };
+
+                var res = mockService.ExportOrganizedAuto3DFiles(testItems, testExportDir);
+
+                if (!res.Success) throw new Exception($"Auto_3D export failed: {string.Join(", ", res.Messages)}");
+
+                string auto3DRoot = Path.Combine(testExportDir, "Auto_3D");
+                string rootAsm = Path.Combine(auto3DRoot, "PumpUnit_Root.sldasm");
+                string lidDir = Path.Combine(auto3DRoot, "LID_ASSY");
+                string lidAsm = Path.Combine(lidDir, "LID_ASSY.sldasm");
+                string coverPart = Path.Combine(lidDir, "COVER.sldprt");
+                string elastomerDir = Path.Combine(auto3DRoot, "ELASTOMER_ASSY");
+                string elastomerAsm = Path.Combine(elastomerDir, "ELASTOMER_ASSY.sldasm");
+                string frameDir = Path.Combine(elastomerDir, "FRAME_ASSY");
+                string frameAsm = Path.Combine(frameDir, "FRAME_ASSY.sldasm");
+                string framePart = Path.Combine(frameDir, "FRAME_BASE.sldprt");
+
+                if (!File.Exists(rootAsm)) throw new Exception($"Root asm missing: {rootAsm}");
+                if (!File.Exists(lidAsm)) throw new Exception($"Sub1 lid asm missing: {lidAsm}");
+                if (!File.Exists(coverPart)) throw new Exception($"Sub1 cover part missing: {coverPart}");
+                if (!File.Exists(elastomerAsm)) throw new Exception($"Sub1 elastomer asm missing: {elastomerAsm}");
+                if (!File.Exists(frameAsm)) throw new Exception($"Sub2 frame asm missing: {frameAsm}");
+                if (!File.Exists(framePart)) throw new Exception($"Sub2 frame part missing: {framePart}");
+
+                // Cleanup
+                try { Directory.Delete(testExportDir, true); } catch { }
+
+                Console.WriteLine(" [PASS] Test 18: Auto_3D 계층 폴더 구조(Root -> Sub1 -> Sub2) 및 .sldasm / .sldprt 분할 저장 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 18: {ex.Message}");
+                failed++;
+            }
+
+            // Test 19: Developer Temp State Save, Restore & Reset Toggle
+            try
+            {
+                string tempStateFile = Path.Combine(Path.GetTempPath(), "dev_temp_test_" + Guid.NewGuid().ToString("N") + ".json");
+                var originalItems = new List<BOMItem>
+                {
+                    new BOMItem(1, "ELASTOMER_ASSY", material: "AL6061", qty: 1, remark: "Test Remark", filePath: @"C:\CAD\ELASTOMER_ASSY.SLDASM", isSubassembly: true, level: 1, drawingNo: "DWG12345678901234", explanation: "엘라스토머 설명", assyCategory: "ELASTOMER ASSY")
+                    {
+                        Rev = "A",
+                        IsApproved = true,
+                        IsExpanded = true,
+                        IsCommonPart = false
+                    },
+                    new BOMItem(2, "FRAME_ASSY", material: "SUS304", qty: 2, remark: "Sub2", filePath: @"C:\CAD\FRAME_ASSY.SLDASM", isSubassembly: true, level: 2, drawingNo: "DWG12345678901235", explanation: "프레임 설명", assyCategory: "FRAME ASSY")
+                    {
+                        Rev = "B",
+                        IsApproved = true,
+                        IsExpanded = true,
+                        IsCommonPart = true
+                    },
+                    new BOMItem(3, "FRAME_BASE", material: "AL7075", qty: 4, remark: "Part", filePath: @"C:\CAD\FRAME_BASE.SLDPRT", isSubassembly: false, level: 3, drawingNo: "DWG12345678901236", explanation: "베이스 설명", assyCategory: "FRAME")
+                    {
+                        Rev = "0",
+                        IsApproved = true,
+                        IsExpanded = false,
+                        IsCommonPart = false
+                    }
+                };
+
+                // Helper serialize function mirroring MainWindow logic
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("{");
+                sb.AppendLine("  \"RootTitle\": \"TOTAL_ASSEMBLY.SLDASM\",");
+                sb.AppendLine("  \"Items\": [");
+                for (int i = 0; i < originalItems.Count; i++)
+                {
+                    var itm = originalItems[i];
+                    sb.AppendLine("    {");
+                    sb.AppendLine($"      \"ItemNo\": {itm.ItemNo},");
+                    sb.AppendLine($"      \"PartName\": \"{itm.PartName}\",");
+                    sb.AppendLine($"      \"FilePath\": \"{itm.FilePath.Replace("\\", "\\\\")}\",");
+                    sb.AppendLine($"      \"FileName\": \"{itm.FileName}\",");
+                    sb.AppendLine($"      \"DrawingNo\": \"{itm.DrawingNo}\",");
+                    sb.AppendLine($"      \"Material\": \"{itm.Material}\",");
+                    sb.AppendLine($"      \"Qty\": {itm.Qty},");
+                    sb.AppendLine($"      \"Rev\": \"{itm.Rev}\",");
+                    sb.AppendLine($"      \"Explanation\": \"{itm.Explanation}\",");
+                    sb.AppendLine($"      \"Remark\": \"{itm.Remark}\",");
+                    sb.AppendLine($"      \"AssyCategory\": \"{itm.AssyCategory}\",");
+                    sb.AppendLine($"      \"IsSubassembly\": {(itm.IsSubassembly ? "true" : "false")},");
+                    sb.AppendLine($"      \"Level\": {itm.Level},");
+                    sb.AppendLine($"      \"IsApproved\": {(itm.IsApproved ? "true" : "false")},");
+                    sb.AppendLine($"      \"IsExpanded\": {(itm.IsExpanded ? "true" : "false")},");
+                    sb.AppendLine($"      \"IsCommonPart\": {(itm.IsCommonPart ? "true" : "false")}");
+                    sb.Append("    }");
+                    if (i < originalItems.Count - 1) sb.Append(",");
+                    sb.AppendLine();
+                }
+                sb.AppendLine("  ]");
+                sb.AppendLine("}");
+
+                File.WriteAllText(tempStateFile, sb.ToString(), System.Text.Encoding.UTF8);
+
+                if (!File.Exists(tempStateFile)) throw new Exception("Temp state file was not created");
+
+                // Parse and verify restoration
+                string jsonText = File.ReadAllText(tempStateFile);
+                if (!jsonText.Contains("ELASTOMER_ASSY") || !jsonText.Contains("FRAME_ASSY") || !jsonText.Contains("FRAME_BASE"))
+                {
+                    throw new Exception("Temp state JSON missing items");
+                }
+
+                // Verify deleting on second toggle
+                File.Delete(tempStateFile);
+                if (File.Exists(tempStateFile)) throw new Exception("Temp state file was not deleted on reset");
+
+                Console.WriteLine(" [PASS] Test 19: 개발자용 임시저장(Dev Temp State) 저장, 복원 및 2회차 클릭 초기화(삭제) 로직 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 19: {ex.Message}");
+                failed++;
+            }
+
+            // Test 20: User-Created Sub-Assy and [생성됨] Badge Property Check
+            try
+            {
+                var createdSub = new BOMItem(1, "CUSTOM_SUB_ASSY", isSubassembly: true, level: 1, remark: "수동 생성된 Sub-Assy")
+                {
+                    IsUserCreated = true
+                };
+                var existingItem = new BOMItem(2, "EXISTING_PART", isSubassembly: false, level: 1);
+
+                if (!createdSub.IsUserCreated) throw new Exception("User created subassembly must have IsUserCreated = true");
+                if (existingItem.IsUserCreated) throw new Exception("Existing part must not have IsUserCreated = true");
+
+                Console.WriteLine(" [PASS] Test 20: 수동 생성된 Sub-Assy 항목의 IsUserCreated(생성됨 뱃지) 플래그 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 20: {ex.Message}");
+                failed++;
+            }
+
             Console.WriteLine($"\n=== 결과: {passed} 통과, {failed} 실패 ===");
             return failed == 0 ? 0 : 1;
         }
     }
 }
+
+

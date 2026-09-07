@@ -192,8 +192,29 @@ namespace BOMManager.Core
                         string filePath = comp.GetPathName();
                         if (string.IsNullOrEmpty(filePath)) continue;
 
-                        string normPath = Path.GetFullPath(filePath).ToLowerInvariant();
-                        bool isSub = normPath.EndsWith(".sldasm");
+                        string normPath = SafeNormalizePath(filePath);
+                        bool isSub = normPath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase) ||
+                                     filePath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase);
+                        if (!isSub)
+                        {
+                            try
+                            {
+                                var mDoc = comp.GetModelDoc2() as ModelDoc2;
+                                if (mDoc != null && mDoc.GetType() == (int)swDocumentTypes_e.swDocASSEMBLY)
+                                {
+                                    isSub = true;
+                                }
+                                else
+                                {
+                                    object[]? childObjs = (object[])comp.GetChildren();
+                                    if (childObjs != null && childObjs.Length > 0)
+                                    {
+                                        isSub = true;
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
                         string compName = comp.Name2 ?? string.Empty;
                         string cleanName = ExtractLeafName(compName);
 
@@ -219,7 +240,7 @@ namespace BOMManager.Core
                                 string pPath = parentComp.GetPathName();
                                 if (!string.IsNullOrEmpty(pPath))
                                 {
-                                    parentPaths.Add(Path.GetFullPath(pPath).ToLowerInvariant());
+                                    parentPaths.Add(SafeNormalizePath(pPath));
                                 }
                                 string pName = parentComp.Name2 ?? string.Empty;
                                 if (!string.IsNullOrEmpty(pName))
@@ -287,7 +308,7 @@ namespace BOMManager.Core
                     var data = partMap[key];
                     var comp = data.Component;
 
-                    string partName = Path.GetFileNameWithoutExtension(data.FilePath);
+                    string partName = ExtractCleanPartName(data.FilePath, comp != null ? comp.Name2 : null, (comp?.GetModelDoc2() as ModelDoc2)?.GetTitle());
                     var propDict = ReadAllCustomProperties(comp);
 
                     string GetProp(params string[] propKeys)
@@ -327,7 +348,7 @@ namespace BOMManager.Core
                         IsSubassembly = data.IsSubassembly,
                         Level = data.Level,
                         IsOpaque = true,
-                        IsExpanded = true
+                        IsExpanded = (data.Level == 0)
                     };
 
                     item.SnapshotOriginalValues();
@@ -481,9 +502,9 @@ namespace BOMManager.Core
                 bool isSub = item.IsSubassembly || (!string.IsNullOrEmpty(item.FilePath) && item.FilePath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase));
                 if (!string.IsNullOrEmpty(item.FilePath))
                 {
-                    string norm = Path.GetFullPath(item.FilePath).ToLowerInvariant();
+                    string norm = SafeNormalizePath(item.FilePath);
                     targetPaths.Add(norm);
-                    string fn = Path.GetFileName(norm);
+                    string fn = SafeGetFileName(norm);
                     targetFnames.Add(fn);
                     if (isSub)
                     {
@@ -519,9 +540,9 @@ namespace BOMManager.Core
             for (int idx = 0; idx < allList.Count; idx++)
             {
                 var item = allList[idx];
-                string itemPath = !string.IsNullOrEmpty(item.FilePath) ? Path.GetFullPath(item.FilePath).ToLowerInvariant() : "";
+                string itemPath = SafeNormalizePath(item.FilePath);
                 string itemPart = item.PartName.Trim().ToLowerInvariant();
-                string itemFname = !string.IsNullOrEmpty(itemPath) ? Path.GetFileName(itemPath) : "";
+                string itemFname = SafeGetFileName(itemPath);
                 bool itemIsSub = item.IsSubassembly || itemPath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase);
 
                 bool isDirect = targetPaths.Contains(itemPath) ||
@@ -550,9 +571,9 @@ namespace BOMManager.Core
                         var cItem = allList[j];
                         if (!string.IsNullOrEmpty(cItem.FilePath))
                         {
-                            string cP = Path.GetFullPath(cItem.FilePath).ToLowerInvariant();
+                            string cP = SafeNormalizePath(cItem.FilePath);
                             targetPaths.Add(cP);
-                            targetFnames.Add(Path.GetFileName(cP));
+                            targetFnames.Add(SafeGetFileName(cP));
                         }
                         if (!string.IsNullOrEmpty(cItem.PartName))
                         {
@@ -570,9 +591,9 @@ namespace BOMManager.Core
             for (int idx = 0; idx < allList.Count; idx++)
             {
                 var item = allList[idx];
-                string itemPath = !string.IsNullOrEmpty(item.FilePath) ? Path.GetFullPath(item.FilePath).ToLowerInvariant() : "";
+                string itemPath = SafeNormalizePath(item.FilePath);
                 string itemPart = item.PartName.Trim().ToLowerInvariant();
-                string itemFname = !string.IsNullOrEmpty(itemPath) ? Path.GetFileName(itemPath) : "";
+                string itemFname = SafeGetFileName(itemPath);
                 bool itemIsSub = item.IsSubassembly || itemPath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase);
 
                 if (matchedIndices.Contains(idx))
@@ -824,6 +845,755 @@ namespace BOMManager.Core
             }
         }
 
+        public (bool Success, int CreatedCount, List<string> Messages) ApplySubAssembliesToFile(IEnumerable<BOMItem> allItems, string? baseDirectory = null)
+        {
+            var messages = new List<string>();
+            int createdCount = 0;
+
+            var itemsList = allItems?.ToList() ?? new List<BOMItem>();
+            var subAssies = itemsList.Where(i => i.IsSubassembly && i.ItemNo > 0).ToList();
+
+            if (subAssies.Count == 0)
+            {
+                return (false, 0, new List<string> { "적용할 Sub-Assy가 정의되어 있지 않습니다. 먼저 [➕ Sub-Assy 만들기]로 서브어셈블리를 추가해주세요." });
+            }
+
+            if (_swApp == null)
+            {
+                Connect();
+            }
+
+            if (_swApp == null)
+            {
+                return (false, 0, new List<string> { "SolidWorks 2021에 연결되어 있지 않습니다. SolidWorks 실행 및 모델을 확인해주세요." });
+            }
+
+            ModelDoc2? model = null;
+            ModelView? modelView = null;
+            bool wasFeatureTreeEnabled = true;
+            bool wasGraphicsUpdateEnabled = true;
+            bool lockedSw = false;
+
+            try
+            {
+                model = (ModelDoc2)_swApp.ActiveDoc;
+                if (model == null || model.GetType() != (int)swDocumentTypes_e.swDocASSEMBLY)
+                {
+                    return (false, 0, new List<string> { "활성화된 SolidWorks 어셈블리(.sldasm) 문서가 없습니다." });
+                }
+
+                var assy = (AssemblyDoc)model;
+                string modelPath = model.GetPathName();
+                string activeDir = SafeGetDirectoryName(modelPath);
+                if (string.IsNullOrWhiteSpace(activeDir))
+                {
+                    activeDir = SafeGetDirectoryName(baseDirectory);
+                }
+                if (string.IsNullOrWhiteSpace(activeDir))
+                {
+                    activeDir = @"C:\Temp";
+                }
+
+                try
+                {
+                    if (!Directory.Exists(activeDir))
+                    {
+                        Directory.CreateDirectory(activeDir);
+                    }
+                }
+                catch { }
+
+                // 1. SolidWorks 화면 갱신 및 피처 트리 리렌더링 중단 & 외부 조작 방지 잠금 (초고속 배치 모드)
+                try
+                {
+                    _swApp.CommandInProgress = true;
+                    _swApp.UserControl = false;
+                    lockedSw = true;
+                }
+                catch { }
+
+                try
+                {
+                    var featMgr = model.FeatureManager;
+                    if (featMgr != null)
+                    {
+                        wasFeatureTreeEnabled = featMgr.EnableFeatureTree;
+                        featMgr.EnableFeatureTree = false;
+                        featMgr.EnableFeatureTreeWindow = false;
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    modelView = (ModelView?)model.ActiveView;
+                    if (modelView != null)
+                    {
+                        wasGraphicsUpdateEnabled = modelView.EnableGraphicsUpdate;
+                        modelView.EnableGraphicsUpdate = false;
+                    }
+                }
+                catch { }
+
+                // 2. SolidWorks 저장 팝업 대화상자 차단 (가상 서브어셈블리로 조용히 생성 후 무음 저장)
+                try
+                {
+                    _swApp.SetUserPreferenceToggle((int)swUserPreferenceToggle_e.swSaveNewComponentsToExternalFile, false);
+                }
+                catch { }
+
+                EnsureCachedCompRecords(model);
+
+                // 3. 각 Sub-Assy별로 계층 위치에 맞게 생성/구성 (Level 1 -> Level 2 순차 처리)
+                foreach (var sub in subAssies)
+                {
+                    string safeName = string.Concat(sub.PartName.Split(Path.GetInvalidFileNameChars())).Trim();
+                    if (string.IsNullOrWhiteSpace(safeName))
+                    {
+                        safeName = $"SubAssy_{sub.ItemNo}";
+                    }
+                    if (!safeName.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase))
+                    {
+                        safeName += ".sldasm";
+                    }
+
+                    string subFilePath = SafeCombine(activeDir, safeName);
+                    sub.FileName = safeName;
+                    sub.FilePath = subFilePath;
+
+                    // 하위 부품 목록 수집
+                    int pIdx = itemsList.IndexOf(sub);
+                    var childParts = new List<BOMItem>();
+                    if (pIdx >= 0)
+                    {
+                        for (int j = pIdx + 1; j < itemsList.Count; j++)
+                        {
+                            if (itemsList[j].Level > sub.Level)
+                            {
+                                childParts.Add(itemsList[j]);
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                    }
+
+                    if (childParts.Count == 0)
+                    {
+                        messages.Add($"⚠️ '{sub.PartName}': 포함된 하위 부품이 없어 건너뛰었습니다.");
+                        continue;
+                    }
+
+                    // 부모 Sub-Assy 식별 (Root가 아닌 상위 서브어셈블리 하위인 경우)
+                    BOMItem? parentItem = null;
+                    if (sub.Level > 1 && pIdx > 0)
+                    {
+                        for (int k = pIdx - 1; k >= 0; k--)
+                        {
+                            if (itemsList[k].Level < sub.Level && itemsList[k].IsSubassembly)
+                            {
+                                parentItem = itemsList[k];
+                                break;
+                            }
+                        }
+                    }
+
+                    Component2? parentComp = null;
+                    if (parentItem != null)
+                    {
+                        string pClean = (parentItem.PartName ?? "").Trim().ToLowerInvariant();
+                        string pNorm = SafeNormalizePath(parentItem.FilePath);
+                        foreach (var rec in _cachedCompRecords)
+                        {
+                            if (rec.Component == null) continue;
+                            if (!string.IsNullOrEmpty(pNorm) && SafeNormalizePath(rec.Path) == pNorm)
+                            {
+                                parentComp = rec.Component;
+                                break;
+                            }
+                            if (rec.CleanName.Equals(pClean, StringComparison.OrdinalIgnoreCase) ||
+                                rec.Name.Equals(pClean, StringComparison.OrdinalIgnoreCase))
+                            {
+                                parentComp = rec.Component;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 상위 어셈블리 내 편집 모드 진입 (부모 Sub-Assy가 있는 경우)
+                    bool enteredInContext = false;
+                    if (parentComp != null)
+                    {
+                        try
+                        {
+                            model.ClearSelection2(true);
+                            bool selP = parentComp.Select4(false, null, false);
+                            if (selP)
+                            {
+                                assy.EditAssembly();
+                                enteredInContext = true;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    // 해당 하위 부품들을 SolidWorks에서 다중 선택
+                    try { model.ClearSelection2(true); } catch { }
+
+                    var childPaths = new HashSet<string>(
+                        childParts
+                            .Where(c => !string.IsNullOrWhiteSpace(c.FilePath))
+                            .Select(c => SafeNormalizePath(c.FilePath))
+                            .Where(p => !string.IsNullOrEmpty(p))
+                    );
+                    var childNames = new HashSet<string>(
+                        childParts
+                            .Where(c => !string.IsNullOrWhiteSpace(c.PartName))
+                            .Select(c => c.PartName.Trim()),
+                        StringComparer.OrdinalIgnoreCase
+                    );
+                    var childFnames = new HashSet<string>(
+                        childParts
+                            .Where(c => !string.IsNullOrWhiteSpace(c.FileName))
+                            .Select(c => SafeGetFileName(c.FileName).ToLowerInvariant()),
+                        StringComparer.OrdinalIgnoreCase
+                    );
+
+                    int selectedCompCount = 0;
+                    Component2? firstSelComp = null;
+                    foreach (var rec in _cachedCompRecords)
+                    {
+                        var comp = rec.Component;
+                        if (comp == null) continue;
+
+                        string recPath = SafeNormalizePath(rec.Path);
+                        string recName = rec.CleanName;
+                        string recFname = SafeGetFileName(rec.Path).ToLowerInvariant();
+
+                        bool matches = false;
+                        if (!string.IsNullOrEmpty(recPath) && childPaths.Contains(recPath)) matches = true;
+                        else if (!string.IsNullOrEmpty(recFname) && childFnames.Contains(recFname)) matches = true;
+                        else if (!string.IsNullOrEmpty(recName) && childNames.Contains(recName)) matches = true;
+                        else if (!string.IsNullOrEmpty(rec.Name) && childNames.Contains(rec.Name)) matches = true;
+
+                        if (matches)
+                        {
+                            try
+                            {
+                                bool selOk = comp.Select4(true, null, false);
+                                if (selOk)
+                                {
+                                    if (firstSelComp == null) firstSelComp = comp;
+                                    selectedCompCount++;
+                                }
+                                else
+                                {
+                                    if (model.Extension.SelectByID2(comp.Name2, "COMPONENT", 0, 0, 0, true, 0, null, 0))
+                                    {
+                                        if (firstSelComp == null) firstSelComp = comp;
+                                        selectedCompCount++;
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+
+                    if (selectedCompCount == 0)
+                    {
+                        if (enteredInContext)
+                        {
+                            try { model.ClearSelection2(true); assy.EditAssembly(); } catch { }
+                        }
+                        messages.Add($"⚠️ '{sub.PartName}': SolidWorks 모델트리에서 일치하는 활성 부품을 찾지 못해 건너뛰었습니다.");
+                        continue;
+                    }
+
+                    // 생성 직전 컴포넌트 목록 캡처 (상위 어셈블리가 아닌 새로 추가되는 서브어셈블리 컴포넌트만 정확히 특정)
+                    var existingCompNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    try
+                    {
+                        object[]? curComps = (object[])assy.GetComponents(false);
+                        if (curComps != null)
+                        {
+                            foreach (var oc in curComps)
+                            {
+                                if (oc is Component2 c && !string.IsNullOrEmpty(c.Name2))
+                                {
+                                    existingCompNames.Add(c.Name2);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
+                    // 서브어셈블리 생성 시도 (MakeAssemblyFromSelectedComponents 및 RunCommand Fallback)
+                    bool formed = false;
+                    try
+                    {
+                        formed = assy.MakeAssemblyFromSelectedComponents(subFilePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"MakeAssemblyFromSelectedComponents 오류: {ex.Message}");
+                    }
+
+                    if (!formed)
+                    {
+                        try
+                        {
+                            formed = _swApp.RunCommand(1259, ""); // Form New Subassembly
+                        }
+                        catch { }
+                    }
+
+                    // 새로 생성된 Sub-Assy 컴포넌트만 정확히 탐색 및 모델트리 이름 변경(Rename)
+                    if (formed)
+                    {
+                        try
+                        {
+                            Component2? newSubComp = null;
+
+                            // 1순위: 생성 후 새로 추가된 컴포넌트 탐색 (부모 어셈블리가 아닌 신규 생성된 어셈블리 컴포넌트)
+                            try
+                            {
+                                object[]? afterComps = (object[])assy.GetComponents(false);
+                                if (afterComps != null)
+                                {
+                                    foreach (var oc in afterComps)
+                                    {
+                                        if (oc is Component2 c && !string.IsNullOrEmpty(c.Name2))
+                                        {
+                                            if (!existingCompNames.Contains(c.Name2))
+                                            {
+                                                newSubComp = c;
+                                                Log($"신규 생성된 서브어셈블리 컴포넌트 발견: {c.Name2}");
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+
+                            string targetName = sub.PartName.Trim();
+                            if (targetName.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase))
+                            {
+                                targetName = targetName.Substring(0, targetName.Length - 7).Trim();
+                            }
+                            if (string.IsNullOrWhiteSpace(targetName))
+                            {
+                                targetName = $"SubAssy_{sub.ItemNo}";
+                            }
+
+                            if (newSubComp != null)
+                            {
+                                // 1. SolidWorks 공식 SelectedFeatureProperties를 통한 피처/컴포넌트 이름 변경
+                                try
+                                {
+                                    model.ClearSelection2(true);
+                                    bool sel = model.Extension.SelectByID2(newSubComp.Name2, "COMPONENT", 0, 0, 0, false, 0, null, 0);
+                                    if (sel)
+                                    {
+                                        model.SelectedFeatureProperties(0, 0, 0, 0, 0, 0, 0, true, false, targetName);
+                                        model.ClearSelection2(true);
+                                        Log($"SelectedFeatureProperties 이름 변경 완료: {targetName}");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log($"SelectedFeatureProperties 변경 예외: {ex.Message}");
+                                }
+
+                                // 2. Component2.Name2 이름 변경 시도
+                                try
+                                {
+                                    newSubComp.Name2 = targetName;
+                                    Log($"newSubComp.Name2 변경 완료: {newSubComp.Name2}");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log($"newSubComp.Name2 변경 예외: {ex.Message}");
+                                }
+
+                                // 3. FeatureByName을 통한 피처 트리 이름 변경 시도
+                                try
+                                {
+                                    var feat = (Feature?)assy.FeatureByName(newSubComp.Name2);
+                                    if (feat != null)
+                                    {
+                                        feat.Name = targetName;
+                                        Log($"Feature Name 변경 완료: {feat.Name}");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log($"Feature Name 변경 예외: {ex.Message}");
+                                }
+
+                                // 4. SelectByID2를 통한 선택 후 SelectionManager 피처 이름 변경 재시도
+                                try
+                                {
+                                    if (model.Extension.SelectByID2(newSubComp.Name2, "COMPONENT", 0, 0, 0, false, 0, null, 0))
+                                    {
+                                        var selMgr = (SelectionMgr)model.SelectionManager;
+                                        if (selMgr != null)
+                                        {
+                                            var selFeat = (Feature?)selMgr.GetSelectedObject6(1, -1);
+                                            if (selFeat != null)
+                                            {
+                                                selFeat.Name = targetName;
+                                            }
+                                        }
+                                        model.ClearSelection2(true);
+                                    }
+                                }
+                                catch { }
+
+                                sub.IsVirtual = true;
+                                sub.PartName = targetName;
+                                sub.AssyCategory = targetName;
+
+                                try
+                                {
+                                    string actualPath = newSubComp.GetPathName();
+                                    if (!string.IsNullOrEmpty(actualPath))
+                                    {
+                                        sub.FilePath = actualPath;
+                                        sub.FileName = SafeGetFileName(actualPath);
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log($"신규 서브어셈블리 이름 변경 후처리 예외: {ex.Message}");
+                        }
+                    }
+
+                    // 인컨텍스트 편집 모드 종료
+                    if (enteredInContext)
+                    {
+                        try
+                        {
+                            model.ClearSelection2(true);
+                            assy.EditAssembly();
+                        }
+                        catch { }
+                    }
+
+                    if (formed)
+                    {
+                        createdCount++;
+                        sub.IsModified = true;
+                        string parentDesc = parentItem != null ? $"'{parentItem.PartName}' 하위에 " : "";
+                        messages.Add($"✅ {parentDesc}'{sub.PartName}' (선택 부품 {selectedCompCount}개) -> '{safeName}' 생성 및 모델트리 적용 완료");
+
+                        // 다음 레벨 Sub-Assy 생성을 위해 캐시 즉시 갱신
+                        _cachedCompRecords.Clear();
+                        EnsureCachedCompRecords(model);
+                    }
+                    else
+                    {
+                        messages.Add($"❌ '{sub.PartName}' (선택 부품 {selectedCompCount}개): 서브어셈블리 생성 실패");
+                    }
+                }
+
+                // 4. 전체 모델 리빌드 및 가상 부품/수정사항 무음(Silent) 저장
+                try
+                {
+                    model.ClearSelection2(true);
+                    model.EditRebuild3();
+
+                    int swErrors = 0;
+                    int swWarnings = 0;
+                    model.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref swErrors, ref swWarnings);
+                }
+                catch { }
+
+                _cachedCompRecords.Clear();
+
+                // 실제 수정된 항목(IsModified)만 속성 저장 반영
+                try
+                {
+                    var modifiedItems = itemsList.Where(i => i.IsModified).ToList();
+                    if (modifiedItems.Count > 0)
+                    {
+                        ApplyPropertiesToSolidWorks(modifiedItems);
+                    }
+                }
+                catch { }
+
+                return (createdCount > 0, createdCount, messages);
+            }
+            catch (COMException comEx)
+            {
+                Log($"ApplySubAssembliesToFile COM 예외: {comEx.Message}");
+                HandleComDisconnection();
+                return (false, createdCount, new List<string> { $"SolidWorks 통신 오류: {comEx.Message}" });
+            }
+            catch (Exception ex)
+            {
+                Log($"ApplySubAssembliesToFile 예외: {ex.Message}");
+                return (false, createdCount, new List<string> { $"서브어셈블리 적용 중 오류: {ex.Message}" });
+            }
+            finally
+            {
+                if (model != null)
+                {
+                    try
+                    {
+                        var featMgr = model.FeatureManager;
+                        if (featMgr != null)
+                        {
+                            featMgr.EnableFeatureTreeWindow = true;
+                            featMgr.EnableFeatureTree = wasFeatureTreeEnabled;
+                            featMgr.UpdateFeatureTree();
+                        }
+                    }
+                    catch { }
+
+                    try
+                    {
+                        if (modelView != null)
+                        {
+                            modelView.EnableGraphicsUpdate = wasGraphicsUpdateEnabled;
+                        }
+                        model.GraphicsRedraw2();
+                    }
+                    catch { }
+                }
+
+                if (lockedSw && _swApp != null)
+                {
+                    try
+                    {
+                        _swApp.CommandInProgress = false;
+                        _swApp.UserControl = true;
+                    }
+                    catch { }
+                }
+
+                SafeReleaseCom(ref modelView);
+                SafeReleaseCom(ref model);
+            }
+        }
+
+        public (bool Success, int CopiedCount, string TargetAuto3DDir, List<string> Messages) ExportOrganizedAuto3DFiles(IEnumerable<BOMItem> allItems, string? baseDirectory = null)
+        {
+            var messages = new List<string>();
+            int copiedCount = 0;
+
+            if (_swApp == null)
+            {
+                Connect();
+            }
+
+            ModelDoc2? model = null;
+            string baseDir = baseDirectory ?? string.Empty;
+            bool lockedSw = false;
+
+            try
+            {
+                if (_swApp != null)
+                {
+                    try
+                    {
+                        _swApp.CommandInProgress = true;
+                        lockedSw = true;
+                    }
+                    catch { }
+
+                    try
+                    {
+                        model = (ModelDoc2)_swApp.ActiveDoc;
+                        if (model != null && string.IsNullOrWhiteSpace(baseDir))
+                        {
+                            string p = model.GetPathName();
+                            baseDir = SafeGetDirectoryName(p);
+                        }
+                    }
+                    catch { }
+                }
+
+                if (string.IsNullOrWhiteSpace(baseDir))
+                {
+                    baseDir = @"C:\Temp";
+                }
+
+                string auto3DDir = Path.Combine(baseDir, "Auto_3D");
+                if (!Directory.Exists(auto3DDir))
+                {
+                    Directory.CreateDirectory(auto3DDir);
+                }
+
+                var itemsList = allItems?.ToList() ?? new List<BOMItem>();
+                var parentStack = new List<(int Level, string FolderPath)>
+                {
+                    (0, auto3DDir)
+                };
+
+                // [성능 최적화] 파일 검색을 1회만 인덱싱하여 반복적인 디스크 전체 탐색 방지 (O(1) 매핑)
+                var fileLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (Directory.Exists(baseDir))
+                {
+                    try
+                    {
+                        foreach (var f in Directory.EnumerateFiles(baseDir, "*.*", SearchOption.AllDirectories))
+                        {
+                            string fname = Path.GetFileName(f);
+                            if (!fileLookup.ContainsKey(fname))
+                            {
+                                fileLookup[fname] = f;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                // 1. Root Assembly 파일 복사
+                string rootModelPath = model != null ? (model.GetPathName() ?? string.Empty) : string.Empty;
+                if (!string.IsNullOrWhiteSpace(rootModelPath) && File.Exists(rootModelPath))
+                {
+                    try
+                    {
+                        string rootDest = Path.Combine(auto3DDir, Path.GetFileName(rootModelPath));
+                        File.Copy(rootModelPath, rootDest, overwrite: true);
+                        copiedCount++;
+                        messages.Add($"📦 [Root Assy] -> Auto_3D\\{Path.GetFileName(rootModelPath)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        messages.Add($"⚠️ Root 어셈블리 복사 예외: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    string title = model != null ? (model.GetTitle() ?? "Root_Assembly") : "Root_Assembly";
+                    if (!title.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase)) title += ".sldasm";
+                    string rootDest = Path.Combine(auto3DDir, title);
+                    if (!string.IsNullOrWhiteSpace(rootModelPath) && File.Exists(rootModelPath))
+                    {
+                        File.Copy(rootModelPath, rootDest, overwrite: true);
+                        copiedCount++;
+                        messages.Add($"📦 [Root Assy] -> Auto_3D\\{title}");
+                    }
+                }
+
+                // 2. 계층별 하위 Sub-Assy 및 파트 파일 복사
+                foreach (var item in itemsList)
+                {
+                    int itemLevel = item.Level;
+                    while (parentStack.Count > 1 && parentStack.Last().Level >= itemLevel)
+                    {
+                        parentStack.RemoveAt(parentStack.Count - 1);
+                    }
+                    string currentParentDir = parentStack.Last().FolderPath;
+
+                    if (item.IsSubassembly)
+                    {
+                        string safeSubName = string.Concat(item.PartName.Split(Path.GetInvalidFileNameChars())).Trim();
+                        if (string.IsNullOrWhiteSpace(safeSubName)) safeSubName = $"SubAssy_{item.ItemNo}";
+                        string subFolder = Path.Combine(currentParentDir, safeSubName);
+                        if (!Directory.Exists(subFolder))
+                        {
+                            Directory.CreateDirectory(subFolder);
+                        }
+
+                        string fn = safeSubName.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase) ? safeSubName : safeSubName + ".sldasm";
+                        string subDest = Path.Combine(subFolder, fn);
+
+                        string subSrc = item.FilePath;
+                        bool copied = false;
+                        if (!string.IsNullOrWhiteSpace(subSrc) && File.Exists(subSrc))
+                        {
+                            try
+                            {
+                                File.Copy(subSrc, subDest, overwrite: true);
+                                copied = true;
+                            }
+                            catch { }
+                        }
+
+                        if (!copied && fileLookup.TryGetValue(fn, out var foundSub) && File.Exists(foundSub))
+                        {
+                            try
+                            {
+                                File.Copy(foundSub, subDest, overwrite: true);
+                                copied = true;
+                            }
+                            catch { }
+                        }
+
+                        copiedCount++;
+                        string rel = subDest.Replace(baseDir, "").TrimStart('\\', '/');
+                        messages.Add($"🧩 [Sub{item.Level} Assy] '{item.PartName}' -> {rel}" + (copied ? "" : " (파일 생성 대기)"));
+
+                        parentStack.Add((itemLevel, subFolder));
+                    }
+                    else
+                    {
+                        // 파트 파일 (.sldprt)
+                        string safePartName = string.Concat(item.PartName.Split(Path.GetInvalidFileNameChars())).Trim();
+                        string fn = safePartName.EndsWith(".sldprt", StringComparison.OrdinalIgnoreCase) ? safePartName : safePartName + ".sldprt";
+                        string partDest = Path.Combine(currentParentDir, fn);
+
+                        if (!Directory.Exists(currentParentDir))
+                        {
+                            Directory.CreateDirectory(currentParentDir);
+                        }
+
+                        string partSrc = item.FilePath;
+                        bool copied = false;
+                        if (!string.IsNullOrWhiteSpace(partSrc) && File.Exists(partSrc))
+                        {
+                            try
+                            {
+                                File.Copy(partSrc, partDest, overwrite: true);
+                                copied = true;
+                            }
+                            catch { }
+                        }
+
+                        if (!copied && fileLookup.TryGetValue(fn, out var foundPart) && File.Exists(foundPart))
+                        {
+                            try
+                            {
+                                File.Copy(foundPart, partDest, overwrite: true);
+                                copied = true;
+                            }
+                            catch { }
+                        }
+
+                        copiedCount++;
+                        string rel = partDest.Replace(baseDir, "").TrimStart('\\', '/');
+                        messages.Add($"⚙️ [Part] '{item.PartName}' -> {rel}" + (copied ? "" : " (경로 참조)"));
+                    }
+                }
+
+                return (true, copiedCount, auto3DDir, messages);
+            }
+            catch (Exception ex)
+            {
+                Log($"ExportOrganizedAuto3DFiles 예외: {ex.Message}");
+                return (false, copiedCount, Path.Combine(baseDir, "Auto_3D"), new List<string> { $"Auto_3D 정리 사본 저장 실패: {ex.Message}" });
+            }
+            finally
+            {
+                if (lockedSw && _swApp != null)
+                {
+                    try
+                    {
+                        _swApp.CommandInProgress = false;
+                    }
+                    catch { }
+                }
+                SafeReleaseCom(ref model);
+            }
+        }
+
         private void EnsureCachedCompRecords(ModelDoc2 model)
         {
             if (_cachedCompRecords.Count > 0) return;
@@ -841,8 +1611,29 @@ namespace BOMManager.Core
                     string filePath = comp.GetPathName();
                     if (string.IsNullOrEmpty(filePath)) continue;
 
-                    string normPath = Path.GetFullPath(filePath).ToLowerInvariant();
-                    bool isSub = normPath.EndsWith(".sldasm");
+                    string normPath = SafeNormalizePath(filePath);
+                    bool isSub = normPath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase) ||
+                                 filePath.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase);
+                    if (!isSub)
+                    {
+                        try
+                        {
+                            var mDoc = comp.GetModelDoc2() as ModelDoc2;
+                            if (mDoc != null && mDoc.GetType() == (int)swDocumentTypes_e.swDocASSEMBLY)
+                            {
+                                isSub = true;
+                            }
+                            else
+                            {
+                                object[]? childObjs = (object[])comp.GetChildren();
+                                if (childObjs != null && childObjs.Length > 0)
+                                {
+                                    isSub = true;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
                     string compName = comp.Name2 ?? string.Empty;
                     string cleanName = ExtractLeafName(compName);
 
@@ -866,7 +1657,7 @@ namespace BOMManager.Core
                             string pPath = parentComp.GetPathName();
                             if (!string.IsNullOrEmpty(pPath))
                             {
-                                parentPaths.Add(Path.GetFullPath(pPath).ToLowerInvariant());
+                                parentPaths.Add(SafeNormalizePath(pPath));
                             }
                             string pName = parentComp.Name2 ?? string.Empty;
                             if (!string.IsNullOrEmpty(pName))
@@ -897,11 +1688,176 @@ namespace BOMManager.Core
             }
         }
 
+        private static string SafeNormalizePath(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            try
+            {
+                string trimmed = path!.Trim().Trim('"', '\'');
+                if (Path.IsPathRooted(trimmed))
+                {
+                    return Path.GetFullPath(trimmed).ToLowerInvariant();
+                }
+                return trimmed.ToLowerInvariant();
+            }
+            catch
+            {
+                return (path ?? string.Empty).Trim().ToLowerInvariant();
+            }
+        }
+
+        private static string SafeGetDirectoryName(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            try
+            {
+                string trimmed = path!.Trim().Trim('"', '\'');
+                return Path.GetDirectoryName(trimmed) ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string SafeGetFileName(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            try
+            {
+                string trimmed = path!.Trim().Trim('"', '\'');
+                return Path.GetFileName(trimmed) ?? string.Empty;
+            }
+            catch
+            {
+                if (path == null) return string.Empty;
+                int lastSlash = Math.Max(path.LastIndexOf('\\'), path.LastIndexOf('/'));
+                if (lastSlash >= 0 && lastSlash < path.Length - 1)
+                {
+                    return path.Substring(lastSlash + 1);
+                }
+                return path;
+            }
+        }
+
+        private static string SafeCombine(string directory, string filename)
+        {
+            try
+            {
+                string safeDir = string.IsNullOrWhiteSpace(directory) ? @"C:\Temp" : directory.Trim().Trim('"', '\'');
+                string safeFile = string.Concat(filename.Split(Path.GetInvalidFileNameChars())).Trim();
+                if (string.IsNullOrWhiteSpace(safeFile)) safeFile = "SubAssembly.sldasm";
+                return Path.Combine(safeDir, safeFile);
+            }
+            catch
+            {
+                return @"C:\Temp\" + filename;
+            }
+        }
+
+        public static string ExtractCleanPartName(string? filePath, string? compName, string? modelTitle = null)
+        {
+            var candidates = new List<string>();
+            if (!string.IsNullOrWhiteSpace(modelTitle)) candidates.Add(modelTitle!);
+            if (!string.IsNullOrWhiteSpace(compName)) candidates.Add(compName!);
+            if (!string.IsNullOrWhiteSpace(filePath))
+            {
+                string fn = SafeGetFileName(filePath);
+                if (!string.IsNullOrWhiteSpace(fn)) candidates.Add(fn);
+            }
+
+            foreach (var raw in candidates)
+            {
+                string cleaned = CleanSingleName(raw);
+                if (!string.IsNullOrWhiteSpace(cleaned) &&
+                    !cleaned.StartsWith("(", StringComparison.Ordinal) &&
+                    !cleaned.EndsWith(")", StringComparison.Ordinal) &&
+                    !cleaned.Contains('^') &&
+                    !cleaned.Contains('/') &&
+                    !cleaned.Contains('\\'))
+                {
+                    return cleaned;
+                }
+            }
+
+            foreach (var raw in candidates)
+            {
+                string cleaned = CleanSingleName(raw);
+                if (!string.IsNullOrWhiteSpace(cleaned) && !cleaned.Contains('^'))
+                {
+                    return cleaned;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(filePath)) return Path.GetFileNameWithoutExtension(filePath) ?? "UNKNOWN";
+            if (!string.IsNullOrWhiteSpace(compName)) return compName!;
+            return "UNKNOWN";
+        }
+
+        public static string CleanSingleName(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+            string s = raw!.Trim().Trim('"', '\'');
+
+            // 1. 파일 확장자 제거
+            if (s.EndsWith(".sldasm", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".sldprt", StringComparison.OrdinalIgnoreCase))
+            {
+                s = Path.GetFileNameWithoutExtension(s);
+            }
+
+            // 2. 경로 구분자 (/, \) -> 마지막 세그먼트
+            if (s.Contains('/')) s = s.Split('/').Last();
+            if (s.Contains('\\')) s = s.Split('\\').Last();
+
+            // 3. 계층 접미사 (@Parent) 제거
+            if (s.Contains('@')) s = s.Split('@')[0];
+
+            // 4. 가상 컴포넌트 대괄호 및 부모 어셈블리 이름 분리 ([Child^Parent])
+            int openB = s.IndexOf('[');
+            int closeB = s.LastIndexOf(']');
+            if (openB >= 0)
+            {
+                if (closeB > openB)
+                {
+                    s = s.Substring(openB + 1, closeB - openB - 1);
+                }
+                else
+                {
+                    s = s.Substring(openB + 1);
+                }
+            }
+
+            // 5. 캐럿(^) 기준 앞부분 (자식 컴포넌트 이름)
+            if (s.Contains('^'))
+            {
+                s = s.Split('^')[0];
+            }
+
+            s = s.Trim('[', ']', ' ');
+
+            // 6. 컴포넌트 인스턴스 번호 제거 (예: Name-1, Name-2, Name<1> 등)
+            int lastHyphen = s.LastIndexOf('-');
+            if (lastHyphen > 0 && lastHyphen < s.Length - 1)
+            {
+                string suffix = s.Substring(lastHyphen + 1).Trim();
+                if (int.TryParse(suffix, out _))
+                {
+                    s = s.Substring(0, lastHyphen).Trim();
+                }
+            }
+
+            int lastAngle = s.LastIndexOf('<');
+            if (lastAngle >= 0 && s.EndsWith(">"))
+            {
+                s = s.Substring(0, lastAngle).Trim();
+            }
+
+            return s.Trim();
+        }
+
         private static string ExtractLeafName(string compName)
         {
-            if (string.IsNullOrEmpty(compName)) return string.Empty;
-            string seg = compName.Contains('/') ? compName.Split('/').Last() : compName.Split('@').First();
-            return seg.Split('-').First().Trim().ToLowerInvariant();
+            return CleanSingleName(compName).ToLowerInvariant();
         }
 
         private static Dictionary<string, string> ReadAllCustomProperties(Component2? comp)

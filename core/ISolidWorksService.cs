@@ -13,5 +13,7 @@ namespace BOMManager.Core
         bool SetComponentsTransparency(IEnumerable<BOMItem> targetItems, IEnumerable<BOMItem> allItems, bool isolateMode = true);
         bool ShowAllOpaque(IEnumerable<BOMItem> allItems);
         (bool Success, string Message) OpenDocument(string filePath);
+        (bool Success, int CreatedCount, List<string> Messages) ApplySubAssembliesToFile(IEnumerable<BOMItem> allItems, string? baseDirectory = null);
+        (bool Success, int CopiedCount, string TargetAuto3DDir, List<string> Messages) ExportOrganizedAuto3DFiles(IEnumerable<BOMItem> allItems, string? baseDirectory = null);
     }
 }

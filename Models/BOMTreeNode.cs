@@ -15,8 +15,8 @@ namespace BOMManager.Models
         private bool _isExpanded = true;
         private double _x;
         private double _y;
-        private double _width = 330; // 1.5x width (220 * 1.5 = 330)
-        private double _height = 95; // 30% reduced from 136 (136 * 0.7 = 95.2)
+        private double _width = 380; // 380px for spacious drawing number input box and content
+        private double _height = 122; // 122px for enlarged drawing number input and material dropdown
 
         public bool IsExpanded
         {
@@ -29,6 +29,9 @@ namespace BOMManager.Models
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasChildrenAndCollapsed));
                     OnPropertyChanged(nameof(ExpandToggleGlyph));
+                    OnPropertyChanged(nameof(IsApplied));
+                    OnPropertyChanged(nameof(NodeBackground));
+                    OnPropertyChanged(nameof(NodeBorderBrush));
                 }
             }
         }
@@ -130,6 +133,19 @@ namespace BOMManager.Models
             }
         }
 
+        public bool IsApproved
+        {
+            get => TreeDepth == 0 || Item.IsApproved;
+            set
+            {
+                Item.IsApproved = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsApplied));
+                OnPropertyChanged(nameof(NodeBackground));
+                OnPropertyChanged(nameof(NodeBorderBrush));
+            }
+        }
+
         public bool IsApplied
         {
             get
@@ -137,7 +153,7 @@ namespace BOMManager.Models
                 if (TreeDepth == 0) return true;
                 if (IsSubassembly)
                 {
-                    return _isExpanded && !string.IsNullOrEmpty(Item.AssyCategory);
+                    return Item.IsApproved && !string.IsNullOrEmpty(Item.AssyCategory);
                 }
                 return !string.IsNullOrEmpty(Item.AssyCategory);
             }

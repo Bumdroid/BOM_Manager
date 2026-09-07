@@ -5,8 +5,11 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -61,11 +64,37 @@ namespace BOMManager.UI
 
             treeGraphView.ItemReparented += TreeGraphView_ItemReparented;
             treeGraphView.CreateSubAssyRequested += TreeGraphView_CreateSubAssyRequested;
+            treeGraphView.ApplyToFileRequested += TreeGraphView_ApplyToFileRequested;
+            treeGraphView.DevTempRequested += TreeGraphView_DevTempRequested;
 
             SetProcessStep(BomProcessStep.Summary);
 
             // 창이 0.05초 만에 즉시 표시되도록 초기 로딩을 백그라운드로 지연 실행
             Loaded += MainWindow_Loaded;
+
+            Closed += (s, e) =>
+            {
+                try
+                {
+                    _autoTimer?.Stop();
+                }
+                catch { }
+
+                try
+                {
+                    if (_swService is IDisposable disposable)
+                    {
+                        disposable.Dispose();
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    Application.Current?.Shutdown();
+                }
+                catch { }
+            };
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -184,6 +213,9 @@ namespace BOMManager.UI
             txtStatusBadge.Foreground = new SolidColorBrush(Color.FromRgb(0x06, 0x5F, 0x46));
             txtStatusBadge.Text = _currentAssyInfo.Title;
 
+            // 0. 기존 사용자 입력값 상태 스냅샷 캡처 (리로드 시 값 보존용)
+            var stateSnapshot = CaptureCurrentState();
+
             // Load BOM Items
             bool topLevel = chkTopLevel.IsChecked == true;
             var (items, err) = _swService.LoadBom(topLevelOnly: topLevel);
@@ -198,10 +230,31 @@ namespace BOMManager.UI
                 return;
             }
 
+            // 1. 기존 입력값 지능형 병합 및 복원
+            if (stateSnapshot == null || stateSnapshot.Count == 0)
+            {
+                treeGraphView.ResetInitialLoadState();
+            }
+            RestoreAndMergeState(items, stateSnapshot);
+
+            // 1.5. 개발자용 임시저장 데이터가 있는 경우 우선 적용 (다음에 켤 때 자동 복원)
+            string devTempPath = GetDevTempFilePath();
+            if (File.Exists(devTempPath))
+            {
+                try
+                {
+                    var savedDevItems = LoadDevTempState(devTempPath);
+                    if (savedDevItems != null && savedDevItems.Count > 0)
+                    {
+                        items = savedDevItems;
+                    }
+                }
+                catch { }
+            }
+
             _allItems.Clear();
             foreach (var itm in items)
             {
-                itm.IsExpanded = false; // 기본 상태: 모든 서브어셈블리 트리 접힘
                 itm.PropertyChanged += Item_PropertyChanged;
                 _allItems.Add(itm);
             }
@@ -509,14 +562,14 @@ namespace BOMManager.UI
             {
                 dgBom.SelectedItem = item;
                 _swService.SetComponentsTransparency(new[] { item }, _allItems, isolateMode: true);
-                txtStatusBar.Text = $"SolidWorks 화면에서 '{item.PartName}' 부품이 불투명(🟢)하게 강조되었습니다.";
+                txtStatusBar.Text = $"SolidWorks 화면에서 '{item.PartName}' 부품이 불투명(👁️ 눈 뜸)하게 강조되었습니다.";
             }
         }
 
         private void BtnShowAll_Click(object sender, RoutedEventArgs e)
         {
             _swService.ShowAllOpaque(_allItems);
-            txtStatusBar.Text = "SolidWorks 화면의 모든 부품을 불투명(🟢) 상태로 복원했습니다.";
+            txtStatusBar.Text = "SolidWorks 화면의 모든 부품을 불투명(👁️ 눈 뜸) 상태로 복원했습니다.";
         }
 
         private void BtnRefresh_Click(object sender, RoutedEventArgs e)
@@ -548,6 +601,11 @@ namespace BOMManager.UI
 
         private void BtnStep2DrawingNo_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isStep1Completed)
+            {
+                MessageBox.Show("⚠️ [① Assy. 정리] 단계를 먼저 완료(사본저장 다음단계로)해야 [② 도번, 재질 입력]으로 이동할 수 있습니다.", "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
             SetProcessStep(BomProcessStep.Step2DrawingNo);
         }
 
@@ -556,42 +614,123 @@ namespace BOMManager.UI
             SetProcessStep(BomProcessStep.Step3Other);
         }
 
+        private bool _isStep1Completed = false;
+
         public void SetProcessStep(BomProcessStep step)
         {
+            if (step == BomProcessStep.Step2DrawingNo && !_isStep1Completed)
+            {
+                MessageBox.Show("⚠️ [① Assy. 정리] 단계를 먼저 완료(사본저장 다음단계로)해야 [② 도번, 재질 입력]으로 이동할 수 있습니다.", "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             _currentStep = step;
+            treeGraphView.CurrentStep = step;
 
-            // Step 버튼 기본 스타일 초기화
-            btnStep1Assy.Background = Brushes.White;
-            btnStep1Assy.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
-            btnStep1Assy.FontWeight = FontWeights.Normal;
-            btnStep1Assy.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+            var defaultTextBrush = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
+            var defaultBorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+            var activeTextBrush = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8));
+            var activeBorderBrush = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
+            var greenBg = new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81));
+            var greenBorder = new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69));
 
-            btnSummary.Background = Brushes.White;
-            btnSummary.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
-            btnSummary.FontWeight = FontWeights.Normal;
-            btnSummary.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+            // 1. Summary 버튼 (선택 시: 테두리 두꺼운 파란색, 채우기 흰색)
+            if (step == BomProcessStep.Summary)
+            {
+                btnSummary.Background = Brushes.White;
+                btnSummary.Foreground = activeTextBrush;
+                btnSummary.FontWeight = FontWeights.Bold;
+                btnSummary.BorderBrush = activeBorderBrush;
+                btnSummary.BorderThickness = new Thickness(2.5);
+            }
+            else
+            {
+                btnSummary.Background = Brushes.White;
+                btnSummary.Foreground = defaultTextBrush;
+                btnSummary.FontWeight = FontWeights.Normal;
+                btnSummary.BorderBrush = defaultBorderBrush;
+                btnSummary.BorderThickness = new Thickness(1);
+            }
 
-            btnStep2DrawingNo.Background = Brushes.White;
-            btnStep2DrawingNo.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
-            btnStep2DrawingNo.FontWeight = FontWeights.Normal;
-            btnStep2DrawingNo.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+            // 2. Step 1 (Assy. 정리) 버튼
+            if (step == BomProcessStep.Step1Assy)
+            {
+                if (_isStep1Completed)
+                {
+                    // 1단계 완료 후 다시 1단계로 돌아온 경우: 채우기는 초록색, 테두리만 두꺼운 파란색
+                    btnStep1Assy.Background = greenBg;
+                    btnStep1Assy.Foreground = Brushes.White;
+                    btnStep1Assy.FontWeight = FontWeights.Bold;
+                    btnStep1Assy.BorderBrush = activeBorderBrush;
+                    btnStep1Assy.BorderThickness = new Thickness(2.5);
+                }
+                else
+                {
+                    // 1단계 미완료 선택 상태: 채우기 흰색, 테두리 두꺼운 파란색
+                    btnStep1Assy.Background = Brushes.White;
+                    btnStep1Assy.Foreground = activeTextBrush;
+                    btnStep1Assy.FontWeight = FontWeights.Bold;
+                    btnStep1Assy.BorderBrush = activeBorderBrush;
+                    btnStep1Assy.BorderThickness = new Thickness(2.5);
+                }
+            }
+            else if (_isStep1Completed)
+            {
+                // 타 단계 이동 시 1단계 완료됨: 채우기 초록색, 테두리 일반 초록색
+                btnStep1Assy.Background = greenBg;
+                btnStep1Assy.Foreground = Brushes.White;
+                btnStep1Assy.FontWeight = FontWeights.Bold;
+                btnStep1Assy.BorderBrush = greenBorder;
+                btnStep1Assy.BorderThickness = new Thickness(1);
+            }
+            else
+            {
+                btnStep1Assy.Background = Brushes.White;
+                btnStep1Assy.Foreground = defaultTextBrush;
+                btnStep1Assy.FontWeight = FontWeights.Normal;
+                btnStep1Assy.BorderBrush = defaultBorderBrush;
+                btnStep1Assy.BorderThickness = new Thickness(1);
+            }
 
-            btnStep3Other.Background = Brushes.White;
-            btnStep3Other.Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69));
-            btnStep3Other.FontWeight = FontWeights.Normal;
-            btnStep3Other.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+            // 3. Step 2 (도번, 재질 입력) 버튼 (선택 시: 테두리 두꺼운 파란색, 채우기 흰색)
+            if (step == BomProcessStep.Step2DrawingNo)
+            {
+                btnStep2DrawingNo.Background = Brushes.White;
+                btnStep2DrawingNo.Foreground = activeTextBrush;
+                btnStep2DrawingNo.FontWeight = FontWeights.Bold;
+                btnStep2DrawingNo.BorderBrush = activeBorderBrush;
+                btnStep2DrawingNo.BorderThickness = new Thickness(2.5);
+            }
+            else
+            {
+                btnStep2DrawingNo.Background = Brushes.White;
+                btnStep2DrawingNo.Foreground = defaultTextBrush;
+                btnStep2DrawingNo.FontWeight = FontWeights.Normal;
+                btnStep2DrawingNo.BorderBrush = defaultBorderBrush;
+                btnStep2DrawingNo.BorderThickness = new Thickness(1);
+            }
 
-            var activeBg = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
-            var activeBorder = new SolidColorBrush(Color.FromRgb(0x1D, 0x4E, 0xD8));
+            // 4. Step 3 (무언가 썸팅) 버튼 (선택 시: 테두리 두꺼운 파란색, 채우기 흰색)
+            if (step == BomProcessStep.Step3Other)
+            {
+                btnStep3Other.Background = Brushes.White;
+                btnStep3Other.Foreground = activeTextBrush;
+                btnStep3Other.FontWeight = FontWeights.Bold;
+                btnStep3Other.BorderBrush = activeBorderBrush;
+                btnStep3Other.BorderThickness = new Thickness(2.5);
+            }
+            else
+            {
+                btnStep3Other.Background = Brushes.White;
+                btnStep3Other.Foreground = defaultTextBrush;
+                btnStep3Other.FontWeight = FontWeights.Normal;
+                btnStep3Other.BorderBrush = defaultBorderBrush;
+                btnStep3Other.BorderThickness = new Thickness(1);
+            }
 
             switch (step)
             {
                 case BomProcessStep.Step1Assy:
-                    btnStep1Assy.Background = activeBg;
-                    btnStep1Assy.Foreground = Brushes.White;
-                    btnStep1Assy.FontWeight = FontWeights.Bold;
-                    btnStep1Assy.BorderBrush = activeBorder;
-
                     borderTreeView.Visibility = Visibility.Visible;
                     borderDataGrid.Visibility = Visibility.Collapsed;
 
@@ -601,11 +740,6 @@ namespace BOMManager.UI
                     break;
 
                 case BomProcessStep.Summary:
-                    btnSummary.Background = activeBg;
-                    btnSummary.Foreground = Brushes.White;
-                    btnSummary.FontWeight = FontWeights.Bold;
-                    btnSummary.BorderBrush = activeBorder;
-
                     borderTreeView.Visibility = Visibility.Collapsed;
                     borderDataGrid.Visibility = Visibility.Visible;
 
@@ -624,34 +758,15 @@ namespace BOMManager.UI
                     break;
 
                 case BomProcessStep.Step2DrawingNo:
-                    btnStep2DrawingNo.Background = activeBg;
-                    btnStep2DrawingNo.Foreground = Brushes.White;
-                    btnStep2DrawingNo.FontWeight = FontWeights.Bold;
-                    btnStep2DrawingNo.BorderBrush = activeBorder;
+                    borderTreeView.Visibility = Visibility.Visible;
+                    borderDataGrid.Visibility = Visibility.Collapsed;
 
-                    borderTreeView.Visibility = Visibility.Collapsed;
-                    borderDataGrid.Visibility = Visibility.Visible;
+                    treeGraphView.LoadItems(_allItems, _swService, _currentAssyInfo.Title);
 
-                    colItemNo.Visibility = Visibility.Visible;
-                    colIsolate.Visibility = Visibility.Collapsed;
-                    colPartName.Visibility = Visibility.Visible;
-                    colQty.Visibility = Visibility.Visible;
-                    colMaterial.Visibility = Visibility.Collapsed;
-                    colDrawingNo.Visibility = Visibility.Visible;
-                    colRev.Visibility = Visibility.Visible;
-                    colRev.IsReadOnly = false;
-                    colExplainer.Visibility = Visibility.Visible;
-                    colRemark.Visibility = Visibility.Collapsed;
-
-                    txtStatusBar.Text = "📌 [② 도번 입력] 파트별 도면번호(Drawing No. OOO-PPPPPGBBBXXXX), Revision, 설명충을 입력합니다.";
+                    txtStatusBar.Text = "📌 [② 도번, 재질 입력] 어셈블리 및 파트 수평 노드 트리에서 도번 및 재질을 입력/관리합니다.";
                     break;
 
                 case BomProcessStep.Step3Other:
-                    btnStep3Other.Background = activeBg;
-                    btnStep3Other.Foreground = Brushes.White;
-                    btnStep3Other.FontWeight = FontWeights.Bold;
-                    btnStep3Other.BorderBrush = activeBorder;
-
                     borderTreeView.Visibility = Visibility.Collapsed;
                     borderDataGrid.Visibility = Visibility.Visible;
 
@@ -666,7 +781,7 @@ namespace BOMManager.UI
                     colExplainer.Visibility = Visibility.Visible;
                     colRemark.Visibility = Visibility.Visible;
 
-                    txtStatusBar.Text = "📌 [③ 기타(재질 등..)] 재질(Material), 도번, 설명충, 비고(REMARK)를 확인하고 편집합니다.";
+                    txtStatusBar.Text = "📌 [③ 무언가 썸팅(개발중)] 재질(Material), 도번, 설명충, 비고(REMARK)를 확인하고 편집합니다.";
                     break;
             }
         }
@@ -921,6 +1036,7 @@ namespace BOMManager.UI
                     remark: "수동 생성된 Sub-Assy"
                 )
                 {
+                    IsUserCreated = true,
                     IsExpanded = true
                 };
                 newSub.CheckModified();
@@ -956,6 +1072,167 @@ namespace BOMManager.UI
                 treeGraphView.LoadItems(_allItems, _swService, _currentAssyInfo.Title);
 
                 txtStatusBar.Text = $"➕ '{parentName}' 하위에 새 Sub-Assy '{dlg.SubAssyName}'이(가) 생성되었습니다.";
+            }
+        }
+
+        private void ShowLoadingOverlay(string title = "사본 저장 및 서브어셈블리 구성 중...")
+        {
+            if (gridLoadingOverlay != null)
+            {
+                txtLoadingTitle.Text = title;
+                gridLoadingOverlay.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void HideLoadingOverlay()
+        {
+            if (gridLoadingOverlay != null)
+            {
+                gridLoadingOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async void TreeGraphView_ApplyToFileRequested(object? sender, EventArgs e)
+        {
+            if (_allItems.Count == 0)
+            {
+                MessageBox.Show("적용할 부품 데이터가 없습니다. 어셈블리를 먼저 로드해주세요.", "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // 1. 미승인 항목 검사 (Sub-Assy 승인 여부 및 파트 분류 여부)
+            var unapprovedSubs = _allItems.Where(i => i.IsSubassembly && i.Level > 0 && !i.IsApproved).ToList();
+            var unassignedParts = _allItems.Where(i => !i.IsSubassembly && string.IsNullOrWhiteSpace(i.AssyCategory)).ToList();
+
+            if (unapprovedSubs.Count > 0 || unassignedParts.Count > 0)
+            {
+                string unapprovedInfo = "";
+                if (unapprovedSubs.Count > 0)
+                {
+                    unapprovedInfo += $"\n• 미승인 Sub-Assy ({unapprovedSubs.Count}개): " + string.Join(", ", unapprovedSubs.Take(3).Select(s => s.PartName)) + (unapprovedSubs.Count > 3 ? "..." : "");
+                }
+                if (unassignedParts.Count > 0)
+                {
+                    unapprovedInfo += $"\n• 미분류 파트 ({unassignedParts.Count}개): " + string.Join(", ", unassignedParts.Take(3).Select(p => p.PartName)) + (unassignedParts.Count > 3 ? "..." : "");
+                }
+
+                MessageBox.Show($"⚠️ 승인되지 않은 어셈블리 또는 분류되지 않은 부품이 있습니다.{unapprovedInfo}\n\n모든 항목을 확인하고 [승인] 체크 후 다시 시도해주세요.", "승인 필요", MessageBoxButton.OK, MessageBoxImage.Warning);
+                txtStatusBar.Text = "⚠️ 미승인 항목이 있어 정리된 파일 저장이 중단되었습니다. 모든 항목을 승인해주세요.";
+                return;
+            }
+
+            var subAssies = _allItems.Where(i => i.IsSubassembly && i.ItemNo > 0).ToList();
+            if (subAssies.Count == 0)
+            {
+                MessageBox.Show("구성된 Sub-Assy(서브어셈블리)가 없습니다.\n먼저 [➕ Sub-Assy 만들기] 버튼을 눌러 서브어셈블리를 추가하고 부품을 구성해주세요.", "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string targetDir = @"C:\Temp";
+            if (!string.IsNullOrWhiteSpace(_currentAssyInfo.Path))
+            {
+                try
+                {
+                    string? d = Path.GetDirectoryName(_currentAssyInfo.Path);
+                    if (!string.IsNullOrWhiteSpace(d)) targetDir = d;
+                }
+                catch { }
+            }
+
+            // 로딩 및 SolidWorks 잠금 오버레이 활성화
+            ShowLoadingOverlay("사본 저장 및 서브어셈블리 구성 중...");
+            Mouse.OverrideCursor = Cursors.Wait;
+
+            try
+            {
+                // UI 렌더링을 위해 잠깐 양보
+                await Task.Delay(60);
+
+                // 2. SolidWorks 모델트리에 서브어셈블리 적용 (초고속 화면/트리 갱신 차단 + CommandInProgress 잠금 모드)
+                var result = _swService.ApplySubAssembliesToFile(_allItems, targetDir);
+
+                // 3. Auto_3D 계층 폴더 구조 사본 저장 (사전 인덱스 캐시 기반 O(1) 복사)
+                var exportResult = _swService.ExportOrganizedAuto3DFiles(_allItems, targetDir);
+
+                if (result.Success || exportResult.Success)
+                {
+                    string devTempPath = GetDevTempFilePath();
+                    if (File.Exists(devTempPath))
+                    {
+                        try { SaveDevTempState(devTempPath, _allItems, _currentAssyInfo.Title); } catch { }
+                    }
+
+                    CheckSwConnectionAndLoad(silent: true);
+
+                    _isStep1Completed = true;
+                    SetProcessStep(BomProcessStep.Step2DrawingNo);
+
+                    HideLoadingOverlay();
+                    Mouse.OverrideCursor = null;
+
+                    MessageBox.Show($"✅ 사본이 저장되었습니다.\n\n[저장 위치]\n{exportResult.TargetAuto3DDir}", "사본저장 완료", MessageBoxButton.OK, MessageBoxImage.Information);
+                    txtStatusBar.Text = $"💾 사본이 저장되었습니다: {exportResult.TargetAuto3DDir}";
+                }
+                else
+                {
+                    HideLoadingOverlay();
+                    Mouse.OverrideCursor = null;
+
+                    string errMsg = string.Join("\n", result.Messages.Concat(exportResult.Messages));
+                    MessageBox.Show($"정리된 파일 저장 실패:\n{errMsg}", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    txtStatusBar.Text = $"❌ 정리된 파일 저장 실패: {errMsg}";
+                }
+            }
+            catch (Exception ex)
+            {
+                HideLoadingOverlay();
+                Mouse.OverrideCursor = null;
+
+                MessageBox.Show($"사본 저장 중 오류 발생:\n{ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                txtStatusBar.Text = $"❌ 사본 저장 오류: {ex.Message}";
+            }
+            finally
+            {
+                HideLoadingOverlay();
+                Mouse.OverrideCursor = null;
+            }
+        }
+
+        private void TreeGraphView_DevTempRequested(object? sender, EventArgs e)
+        {
+            string devTempPath = GetDevTempFilePath();
+
+            if (File.Exists(devTempPath))
+            {
+                // 이미 임시 저장된 파일이 있는 상태에서 한 번 더 누르면 -> 초기화(삭제)
+                try
+                {
+                    File.Delete(devTempPath);
+                }
+                catch { }
+
+                MessageBox.Show("개발자용 임시저장 데이터가 초기화되었습니다.", "초기화됨", MessageBoxButton.OK, MessageBoxImage.Information);
+                txtStatusBar.Text = "🗑️ 개발자용 임시저장 데이터가 초기화되었습니다.";
+            }
+            else
+            {
+                // 임시 저장된 파일이 없는 경우 -> 현재 UI의 Assy 정리 설정 상태를 임시 저장
+                if (_allItems.Count == 0)
+                {
+                    MessageBox.Show("임시 저장할 부품 데이터가 없습니다. 어셈블리를 먼저 로드해주세요.", "안내", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                try
+                {
+                    SaveDevTempState(devTempPath, _allItems, _currentAssyInfo.Title);
+                    MessageBox.Show("현재 Assy. 정리 설정이 임시 저장되었습니다.\n다음에 프로그램을 실행할 때 이 상태가 자동으로 불러와집니다.\n\n(한 번 더 누르면 초기화됩니다.)", "임시 저장됨", MessageBoxButton.OK, MessageBoxImage.Information);
+                    txtStatusBar.Text = $"💾 개발자용 임시 저장 완료 ({_allItems.Count}개 항목, 다음 실행 시 자동 복원)";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"임시 저장 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
@@ -1054,6 +1331,194 @@ namespace BOMManager.UI
 
         #endregion
 
+        #region State Preservation & Merge
+
+        private class ItemStateSnapshot
+        {
+            public string PartName { get; set; } = string.Empty;
+            public string FilePath { get; set; } = string.Empty;
+            public string FileName { get; set; } = string.Empty;
+            public string DrawingNo { get; set; } = string.Empty;
+            public string Material { get; set; } = string.Empty;
+            public string Rev { get; set; } = string.Empty;
+            public string Explanation { get; set; } = string.Empty;
+            public string Remark { get; set; } = string.Empty;
+            public string AssyCategory { get; set; } = string.Empty;
+            public bool IsCommonPart { get; set; }
+            public bool IsModified { get; set; }
+            public bool IsExpanded { get; set; }
+            public bool IsSubassembly { get; set; }
+        }
+
+        private Dictionary<string, ItemStateSnapshot> CaptureCurrentState()
+        {
+            var stateMap = new Dictionary<string, ItemStateSnapshot>(StringComparer.OrdinalIgnoreCase);
+            if (_allItems == null || _allItems.Count == 0) return stateMap;
+
+            foreach (var item in _allItems)
+            {
+                var snap = new ItemStateSnapshot
+                {
+                    PartName = item.PartName ?? string.Empty,
+                    FilePath = item.FilePath ?? string.Empty,
+                    FileName = item.FileName ?? string.Empty,
+                    DrawingNo = item.DrawingNo ?? string.Empty,
+                    Material = item.Material ?? string.Empty,
+                    Rev = item.Rev ?? string.Empty,
+                    Explanation = item.Explanation ?? string.Empty,
+                    Remark = item.Remark ?? string.Empty,
+                    AssyCategory = item.AssyCategory ?? string.Empty,
+                    IsCommonPart = item.IsCommonPart,
+                    IsModified = item.IsModified,
+                    IsExpanded = item.IsExpanded,
+                    IsSubassembly = item.IsSubassembly
+                };
+
+                // 1. 정규화된 전체 파일 경로 키
+                string normPath = SafeNormalizePath(item.FilePath);
+                if (!string.IsNullOrEmpty(normPath) && !stateMap.ContainsKey(normPath))
+                {
+                    stateMap[normPath] = snap;
+                }
+
+                // 2. 파일명 키 (FNAME:xxx)
+                string fName = SafeGetFileName(item.FilePath);
+                if (string.IsNullOrEmpty(fName)) fName = SafeGetFileName(item.FileName);
+                if (!string.IsNullOrEmpty(fName))
+                {
+                    string fKey = "FNAME:" + fName.ToLowerInvariant();
+                    if (!stateMap.ContainsKey(fKey))
+                    {
+                        stateMap[fKey] = snap;
+                    }
+                }
+
+                // 3. 파트명 키 (NAME:xxx)
+                if (!string.IsNullOrWhiteSpace(item.PartName))
+                {
+                    string pKey = "NAME:" + (item.PartName ?? "").Trim().ToLowerInvariant();
+                    if (!stateMap.ContainsKey(pKey))
+                    {
+                        stateMap[pKey] = snap;
+                    }
+                }
+            }
+            return stateMap;
+        }
+
+        private void RestoreAndMergeState(List<BOMItem> newItems, Dictionary<string, ItemStateSnapshot>? stateMap)
+        {
+            if (newItems == null || newItems.Count == 0 || stateMap == null || stateMap.Count == 0) return;
+
+            var usedSubSnapshots = new HashSet<ItemStateSnapshot>();
+
+            foreach (var item in newItems)
+            {
+                ItemStateSnapshot? snap = null;
+
+                // 1순위: 파일 전체 경로 매칭
+                string normPath = SafeNormalizePath(item.FilePath);
+                if (!string.IsNullOrEmpty(normPath) && stateMap.TryGetValue(normPath, out var s1))
+                {
+                    snap = s1;
+                }
+
+                // 2순위: 파일명 매칭
+                if (snap == null)
+                {
+                    string fName = SafeGetFileName(item.FilePath);
+                    if (string.IsNullOrEmpty(fName)) fName = SafeGetFileName(item.FileName);
+                    if (!string.IsNullOrEmpty(fName) && stateMap.TryGetValue("FNAME:" + fName.ToLowerInvariant(), out var s2))
+                    {
+                        snap = s2;
+                    }
+                }
+
+                // 3순위: 파트명 매칭
+                if (snap == null && !string.IsNullOrWhiteSpace(item.PartName))
+                {
+                    if (stateMap.TryGetValue("NAME:" + (item.PartName ?? "").Trim().ToLowerInvariant(), out var s3))
+                    {
+                        snap = s3;
+                    }
+                }
+
+                // 4순위: 새로 생성된 서브어셈블리가 '어셈블리1', 'Assembly1' 등의 기본 이름으로 로드된 경우
+                if (snap == null && item.IsSubassembly)
+                {
+                    string pUpper = (item.PartName ?? "").Trim().ToUpperInvariant();
+                    if (pUpper.StartsWith("어셈블리") || pUpper.StartsWith("ASSEMBLY") || pUpper.StartsWith("SUBASSY") || pUpper.Contains("^"))
+                    {
+                        var unassignedSub = stateMap.Values.FirstOrDefault(s => s.IsSubassembly && !string.IsNullOrWhiteSpace(s.PartName) &&
+                            !s.PartName.StartsWith("어셈블리", StringComparison.OrdinalIgnoreCase) &&
+                            !s.PartName.StartsWith("ASSEMBLY", StringComparison.OrdinalIgnoreCase) &&
+                            !usedSubSnapshots.Contains(s));
+                        if (unassignedSub != null)
+                        {
+                            snap = unassignedSub;
+                            usedSubSnapshots.Add(unassignedSub);
+                            item.PartName = unassignedSub.PartName;
+                        }
+                    }
+                }
+
+                if (snap != null)
+                {
+                    // 사용자가 입력/수정한 값 우선 복원
+                    if (!string.IsNullOrWhiteSpace(snap.PartName) && item.IsSubassembly && (item.PartName?.StartsWith("어셈블리", StringComparison.OrdinalIgnoreCase) == true || item.PartName?.StartsWith("ASSEMBLY", StringComparison.OrdinalIgnoreCase) == true))
+                    {
+                        item.PartName = snap.PartName;
+                    }
+                    if (!string.IsNullOrWhiteSpace(snap.DrawingNo)) item.DrawingNo = snap.DrawingNo;
+                    if (!string.IsNullOrWhiteSpace(snap.Material)) item.Material = snap.Material;
+                    if (!string.IsNullOrWhiteSpace(snap.Rev)) item.Rev = snap.Rev;
+                    if (!string.IsNullOrWhiteSpace(snap.Explanation)) item.Explanation = snap.Explanation;
+                    if (!string.IsNullOrWhiteSpace(snap.Remark)) item.Remark = snap.Remark;
+                    if (!string.IsNullOrWhiteSpace(snap.AssyCategory)) item.AssyCategory = snap.AssyCategory;
+                    item.IsCommonPart = snap.IsCommonPart;
+                    item.IsExpanded = snap.IsExpanded;
+                    if (snap.IsModified)
+                    {
+                        item.IsModified = true;
+                    }
+                }
+            }
+        }
+
+        private static string SafeNormalizePath(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            try
+            {
+                return Path.GetFullPath(path).Trim().ToLowerInvariant();
+            }
+            catch
+            {
+                return (path ?? "").Trim().Replace('/', '\\').ToLowerInvariant();
+            }
+        }
+
+        private static string SafeGetFileName(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+            try
+            {
+                return Path.GetFileName(path) ?? string.Empty;
+            }
+            catch
+            {
+                if (path == null) return string.Empty;
+                int lastSlash = Math.Max(path.LastIndexOf('\\'), path.LastIndexOf('/'));
+                if (lastSlash >= 0 && lastSlash < path.Length - 1)
+                {
+                    return path.Substring(lastSlash + 1);
+                }
+                return path;
+            }
+        }
+
+        #endregion
+
         #region Context Menu
 
         private void MenuToggleTree_Click(object sender, RoutedEventArgs e)
@@ -1071,7 +1536,7 @@ namespace BOMManager.UI
             if (selected.Count > 0)
             {
                 _swService.SetComponentsTransparency(selected, _allItems, isolateMode: true);
-                txtStatusBar.Text = $"SolidWorks 화면에 {selected.Count}개 부품이 불투명(🟢)하게 강조되었습니다.";
+                txtStatusBar.Text = $"SolidWorks 화면에 {selected.Count}개 부품이 불투명(👁️ 눈 뜸)하게 강조되었습니다.";
             }
         }
 
@@ -1100,6 +1565,198 @@ namespace BOMManager.UI
             }
             UpdateStatistics();
             txtStatusBar.Text = $"{selected.Count}개 파트를 원래 값으로 되돌렸습니다.";
+        }
+
+        #endregion
+
+        #region Developer Temp State Helper Methods
+
+        private static string GetDevTempFilePath()
+        {
+            try
+            {
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string dir = Path.Combine(appData, "BOM_Manager");
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+                return Path.Combine(dir, "dev_temp_state.json");
+            }
+            catch
+            {
+                return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "dev_temp_state.json");
+            }
+        }
+
+        private static void SaveDevTempState(string filePath, IList<BOMItem> items, string? rootTitle)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine($"  \"RootTitle\": \"{EscapeJson(rootTitle ?? "")}\",");
+            sb.AppendLine($"  \"SavedTime\": \"{DateTime.Now:yyyy-MM-ddTHH:mm:ss}\",");
+            sb.AppendLine("  \"Items\": [");
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var itm = items[i];
+                sb.AppendLine("    {");
+                sb.AppendLine($"      \"ItemNo\": {itm.ItemNo},");
+                sb.AppendLine($"      \"PartName\": \"{EscapeJson(itm.PartName)}\",");
+                sb.AppendLine($"      \"FilePath\": \"{EscapeJson(itm.FilePath)}\",");
+                sb.AppendLine($"      \"FileName\": \"{EscapeJson(itm.FileName)}\",");
+                sb.AppendLine($"      \"DrawingNo\": \"{EscapeJson(itm.DrawingNo)}\",");
+                sb.AppendLine($"      \"Material\": \"{EscapeJson(itm.Material)}\",");
+                sb.AppendLine($"      \"Qty\": {itm.Qty},");
+                sb.AppendLine($"      \"Rev\": \"{EscapeJson(itm.Rev)}\",");
+                sb.AppendLine($"      \"Explanation\": \"{EscapeJson(itm.Explanation)}\",");
+                sb.AppendLine($"      \"Remark\": \"{EscapeJson(itm.Remark)}\",");
+                sb.AppendLine($"      \"AssyCategory\": \"{EscapeJson(itm.AssyCategory)}\",");
+                sb.AppendLine($"      \"IsSubassembly\": {(itm.IsSubassembly ? "true" : "false")},");
+                sb.AppendLine($"      \"Level\": {itm.Level},");
+                sb.AppendLine($"      \"IsApproved\": {(itm.IsApproved ? "true" : "false")},");
+                sb.AppendLine($"      \"IsExpanded\": {(itm.IsExpanded ? "true" : "false")},");
+                sb.AppendLine($"      \"IsCommonPart\": {(itm.IsCommonPart ? "true" : "false")},");
+                sb.AppendLine($"      \"IsUserCreated\": {(itm.IsUserCreated ? "true" : "false")},");
+                sb.AppendLine($"      \"Configuration\": \"{EscapeJson(itm.Configuration)}\"");
+                sb.Append("    }");
+                if (i < items.Count - 1) sb.Append(",");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("  ]");
+            sb.AppendLine("}");
+
+            string? dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
+
+        private static List<BOMItem> LoadDevTempState(string filePath)
+        {
+            var list = new List<BOMItem>();
+            if (!File.Exists(filePath)) return list;
+
+            string json = File.ReadAllText(filePath, Encoding.UTF8);
+            int itemsStart = json.IndexOf("\"Items\"", StringComparison.OrdinalIgnoreCase);
+            if (itemsStart < 0) return list;
+
+            int arrayStart = json.IndexOf('[', itemsStart);
+            int arrayEnd = json.LastIndexOf(']');
+            if (arrayStart < 0 || arrayEnd <= arrayStart) return list;
+
+            string arrayContent = json.Substring(arrayStart + 1, arrayEnd - arrayStart - 1);
+
+            int pos = 0;
+            while (pos < arrayContent.Length)
+            {
+                int openBrace = arrayContent.IndexOf('{', pos);
+                if (openBrace < 0) break;
+                int closeBrace = arrayContent.IndexOf('}', openBrace);
+                if (closeBrace < 0) break;
+
+                string block = arrayContent.Substring(openBrace + 1, closeBrace - openBrace - 1);
+                pos = closeBrace + 1;
+
+                var dict = ParseJsonBlock(block);
+                if (dict.Count == 0) continue;
+
+                int itemNo = dict.TryGetValue("ItemNo", out var sItemNo) && int.TryParse(sItemNo, out int parsedNo) ? parsedNo : list.Count + 1;
+                string partName = dict.TryGetValue("PartName", out var sPartName) ? UnescapeJson(sPartName) : "";
+                string filePathVal = dict.TryGetValue("FilePath", out var sFilePath) ? UnescapeJson(sFilePath) : "";
+                string fileName = dict.TryGetValue("FileName", out var sFileName) ? UnescapeJson(sFileName) : "";
+                string drawingNo = dict.TryGetValue("DrawingNo", out var sDrawingNo) ? UnescapeJson(sDrawingNo) : "";
+                string material = dict.TryGetValue("Material", out var sMaterial) ? UnescapeJson(sMaterial) : "";
+                int qty = dict.TryGetValue("Qty", out var sQty) && int.TryParse(sQty, out int parsedQty) ? parsedQty : 1;
+                string rev = dict.TryGetValue("Rev", out var sRev) ? UnescapeJson(sRev) : "";
+                string explanation = dict.TryGetValue("Explanation", out var sExplanation) ? UnescapeJson(sExplanation) : "";
+                string remark = dict.TryGetValue("Remark", out var sRemark) ? UnescapeJson(sRemark) : "";
+                string assyCategory = dict.TryGetValue("AssyCategory", out var sAssyCat) ? UnescapeJson(sAssyCat) : "";
+                bool isSub = dict.TryGetValue("IsSubassembly", out var sIsSub) && bool.TryParse(sIsSub, out bool parsedSub) && parsedSub;
+                int level = dict.TryGetValue("Level", out var sLevel) && int.TryParse(sLevel, out int parsedLevel) ? parsedLevel : 0;
+                bool isApproved = dict.TryGetValue("IsApproved", out var sIsApp) && bool.TryParse(sIsApp, out bool parsedApp) && parsedApp;
+                bool isExpanded = dict.TryGetValue("IsExpanded", out var sIsExp) && bool.TryParse(sIsExp, out bool parsedExp) && parsedExp;
+                bool isCommon = dict.TryGetValue("IsCommonPart", out var sIsCom) && bool.TryParse(sIsCom, out bool parsedCom) && parsedCom;
+                bool isUserCreated = (dict.TryGetValue("IsUserCreated", out var sIsUc) && bool.TryParse(sIsUc, out bool parsedUc) && parsedUc) || (!string.IsNullOrEmpty(remark) && remark.Contains("수동 생성된"));
+                string config = dict.TryGetValue("Configuration", out var sConfig) ? UnescapeJson(sConfig) : "Default";
+
+                var item = new BOMItem(
+                    itemNo: itemNo,
+                    partName: partName,
+                    material: material,
+                    qty: qty,
+                    remark: remark,
+                    filePath: filePathVal,
+                    isSubassembly: isSub,
+                    level: level,
+                    drawingNo: drawingNo,
+                    explanation: explanation,
+                    assyCategory: assyCategory
+                )
+                {
+                    Rev = rev,
+                    FileName = fileName,
+                    Configuration = config,
+                    IsCommonPart = isCommon,
+                    IsApproved = isApproved,
+                    IsExpanded = isExpanded,
+                    IsUserCreated = isUserCreated
+                };
+
+                if (isApproved || !string.IsNullOrEmpty(assyCategory))
+                {
+                    item.CheckModified();
+                }
+
+                list.Add(item);
+            }
+
+            return list;
+        }
+
+        private static Dictionary<string, string> ParseJsonBlock(string block)
+        {
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var lines = block.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                string trimmed = line.Trim().TrimEnd(',');
+                int colonIdx = trimmed.IndexOf(':');
+                if (colonIdx > 0)
+                {
+                    string key = trimmed.Substring(0, colonIdx).Trim().Trim('"');
+                    string val = trimmed.Substring(colonIdx + 1).Trim();
+                    if (val.StartsWith("\"") && val.EndsWith("\"") && val.Length >= 2)
+                    {
+                        val = val.Substring(1, val.Length - 2);
+                    }
+                    dict[key] = val;
+                }
+            }
+            return dict;
+        }
+
+        private static string EscapeJson(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return "";
+            return str.Replace("\\", "\\\\")
+                      .Replace("\"", "\\\"")
+                      .Replace("\r", "\\r")
+                      .Replace("\n", "\\n")
+                      .Replace("\t", "\\t");
+        }
+
+        private static string UnescapeJson(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return "";
+            return str.Replace("\\\"", "\"")
+                      .Replace("\\r", "\r")
+                      .Replace("\\n", "\n")
+                      .Replace("\\t", "\t")
+                      .Replace("\\\\", "\\");
         }
 
         #endregion

@@ -87,9 +87,9 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="btnCreateSubAssy"
                         Content="➕ Sub-Assy 만들기"
-                        Height="26"
+                        Height="32"
                         Padding="10,0"
-                        Margin="2,0,6,0"
+                        Margin="2,0,4,0"
                         Background="#2563EB"
                         BorderBrush="#1D4ED8"
                         Foreground="#FFFFFF"
@@ -97,13 +97,35 @@
                         FontSize="11"
                         ToolTip="새로운 Sub-Assy(서브어셈블리)를 생성합니다."
                         Click="BtnCreateSubAssy_Click"/>
+                <Button x:Name="btnApplyToFile"
+                        Height="32"
+                        Padding="12,2"
+                        Margin="2,0,4,0"
+                        Background="#059669"
+                        BorderBrush="#047857"
+                        Foreground="#FFFFFF"
+                        FontWeight="Bold"
+                        FontSize="11"
+                        ToolTip="설정된 Sub-Assy 및 파트 계층 구조대로 SolidWorks 모델트리에 서브어셈블리를 생성 및 적용하여 Auto_3D 폴더에 사본을 저장하고 다음 단계(도번, 재질 입력)로 이동합니다."
+                        Click="BtnApplyToFile_Click">
+                    <TextBlock Text="사본저장&#x0a;다음단계로" TextAlignment="Center" FontWeight="Bold" FontSize="11" LineHeight="13" LineStackingStrategy="BlockLineHeight"/>
+                </Button>
+                <Button x:Name="btnDevTemp"
+                        Content="🛠️ 임시(개발자용)"
+                        Height="32"
+                        Padding="10,0"
+                        Margin="2,0,6,0"
+                        Background="#64748B"
+                        BorderBrush="#475569"
+                        Foreground="#FFFFFF"
+                        FontWeight="Bold"
+                        FontSize="11"
+                        ToolTip="개발자용 임시 기능: 미승인 검증을 우회하여 현재 트리 구조대로 Auto_3D 폴더 생성 및 사본 저장을 즉시 실행합니다."
+                        Click="BtnDevTemp_Click"/>
                 <Separator Width="1" Height="16" Margin="4,0" Background="#CBD5E1"/>
                 <Button x:Name="btnZoomIn" Content="+" FontSize="16" FontWeight="Bold" Width="28" Height="26" Padding="0" Margin="2,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#F8FAFC" BorderBrush="#CBD5E1" ToolTip="화면 확대 (Ctrl + 휠 위)" Click="BtnZoomIn_Click"/>
                 <Button x:Name="btnZoomOut" Content="−" FontSize="16" FontWeight="Bold" Width="28" Height="26" Padding="0" Margin="2,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#F8FAFC" BorderBrush="#CBD5E1" ToolTip="화면 축소 (Ctrl + 휠 아래)" Click="BtnZoomOut_Click"/>
                 <Button x:Name="btnZoomReset" Content="100%" Height="26" Padding="6,0" Margin="2,0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#F8FAFC" BorderBrush="#CBD5E1" FontWeight="SemiBold" FontSize="11" ToolTip="기본 배율(100%)로 초기화" Click="BtnZoomReset_Click"/>
-                <Separator Width="1" Height="16" Margin="4,0" Background="#CBD5E1"/>
-                <Button x:Name="btnTreeExpandAll" Content="📂 전체 펼치기" Height="26" Padding="8,0" Margin="2,0" Background="#EFF6FF" BorderBrush="#93C5FD" Foreground="#1E40AF" FontWeight="SemiBold" FontSize="11" ToolTip="모든 서브어셈블리 브랜치를 펼칩니다." Click="BtnTreeExpandAll_Click"/>
-                <Button x:Name="btnTreeCollapseAll" Content="📁 전체 접기" Height="26" Padding="8,0" Margin="2,0" Background="#F8FAFC" BorderBrush="#CBD5E1" Foreground="#475569" FontWeight="SemiBold" FontSize="11" ToolTip="최상위 어셈블리만 남기고 모두 접습니다." Click="BtnTreeCollapseAll_Click"/>
             </StackPanel>
         </Border>
 

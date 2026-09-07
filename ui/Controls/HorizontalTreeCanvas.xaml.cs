@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
@@ -26,9 +27,42 @@ namespace BOMManager.UI.Controls
         private BOMTreeNode? _dragCandidateNode;
         private bool _isDraggingCard;
 
+        private BomProcessStep _currentStep = BomProcessStep.Step1Assy;
+        public BomProcessStep CurrentStep
+        {
+            get => _currentStep;
+            set
+            {
+                if (_currentStep != value)
+                {
+                    _currentStep = value;
+                    UpdateToolbarForStep();
+                    RedrawTree();
+                }
+            }
+        }
+
+        private void UpdateToolbarForStep()
+        {
+            if (_currentStep == BomProcessStep.Step2DrawingNo)
+            {
+                btnCreateSubAssy.Visibility = Visibility.Collapsed;
+                btnApplyToFile.Visibility = Visibility.Collapsed;
+                btnDevTemp.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                btnCreateSubAssy.Visibility = Visibility.Visible;
+                btnApplyToFile.Visibility = Visibility.Visible;
+                btnDevTemp.Visibility = Visibility.Visible;
+            }
+        }
+
         public event EventHandler<BOMItem>? ItemSelected;
         public event EventHandler<(BOMItem DraggedItem, BOMItem TargetParentItem)>? ItemReparented;
         public event EventHandler<BOMItem?>? CreateSubAssyRequested;
+        public event EventHandler? ApplyToFileRequested;
+        public event EventHandler? DevTempRequested;
         public event EventHandler? HierarchyChanged;
 
         public HorizontalTreeCanvas()
@@ -36,30 +70,118 @@ namespace BOMManager.UI.Controls
             InitializeComponent();
         }
 
-        public void LoadItems(IList<BOMItem> items, ISolidWorksService swService, string? rootDocTitle = null)
+        private bool _hasInitiallyLoaded = false;
+
+        public void ResetInitialLoadState()
+        {
+            _hasInitiallyLoaded = false;
+        }
+
+        public void LoadItems(IList<BOMItem> items, ISolidWorksService swService, string? rootDocTitle = null, bool forceInitialCollapse = false)
         {
             _swService = swService;
             _rootDocTitle = rootDocTitle;
+
+            // 기존에 열려있던 노드들의 펼침(승인) 상태 맵 캡처
+            var expansionMap = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            if (!_hasInitiallyLoaded && !forceInitialCollapse)
+            {
+                bool anyExpanded = items.Any(it => it.Level > 0 && it.IsExpanded);
+                if (anyExpanded)
+                {
+                    _hasInitiallyLoaded = true;
+                }
+            }
+
+            if (_hasInitiallyLoaded && !forceInitialCollapse)
+            {
+                if (_rawItems != null)
+                {
+                    foreach (var itm in _rawItems)
+                    {
+                        string key = GetItemKey(itm);
+                        if (!string.IsNullOrEmpty(key)) expansionMap[key] = itm.IsExpanded;
+                    }
+                }
+                foreach (var itm in items)
+                {
+                    string key = GetItemKey(itm);
+                    if (!string.IsNullOrEmpty(key) && itm.IsExpanded)
+                    {
+                        expansionMap[key] = true;
+                    }
+                }
+            }
+
             _rawItems = items.ToList();
 
             // Build hierarchical forest with Master Root assembly wrapping
             _rootNodes = BOMTreeNode.BuildForest(_rawItems, _rootDocTitle);
 
-            // Expand Root level, and preserve node expansion if set, or expand Sub1 if category assigned
-            foreach (var root in _rootNodes)
+            if (!_hasInitiallyLoaded || forceInitialCollapse)
             {
-                root.IsExpanded = true;
-                foreach (var child in root.Children)
+                // 최초 진입 시: Root만 확장하고 Sub1 및 그 하위는 기본 접힘(미승인) 처리
+                foreach (var root in _rootNodes)
                 {
-                    child.IsExpanded = child.Item.IsExpanded || !string.IsNullOrEmpty(child.Item.AssyCategory);
-                    foreach (var sub2 in child.Children)
+                    root.IsExpanded = true;
+                    if (root.Item != null) root.Item.IsExpanded = true;
+                    foreach (var child in root.Children)
                     {
-                        sub2.IsExpanded = sub2.Item.IsExpanded || !string.IsNullOrEmpty(sub2.Item.AssyCategory);
+                        CollapseAllDescendants(child);
                     }
+                }
+                _hasInitiallyLoaded = true;
+            }
+            else
+            {
+                // 기존 승인/펼침 상태 완벽 복원
+                foreach (var root in _rootNodes)
+                {
+                    root.IsExpanded = true;
+                    if (root.Item != null) root.Item.IsExpanded = true;
+                    RestoreExpansionRecursive(root, expansionMap);
                 }
             }
 
             RedrawTree();
+        }
+
+        private static string GetItemKey(BOMItem itm)
+        {
+            if (!string.IsNullOrEmpty(itm.FilePath)) return itm.FilePath;
+            if (!string.IsNullOrEmpty(itm.FileName)) return itm.FileName;
+            return $"{itm.PartName}_{itm.Level}";
+        }
+
+        private static void RestoreExpansionRecursive(BOMTreeNode node, Dictionary<string, bool> expansionMap)
+        {
+            if (node.TreeDepth > 0 && node.Item != null)
+            {
+                string key = GetItemKey(node.Item);
+                if (expansionMap.TryGetValue(key, out bool wasExpanded))
+                {
+                    node.IsExpanded = wasExpanded;
+                    node.Item.IsExpanded = wasExpanded;
+                }
+                else
+                {
+                    node.IsExpanded = node.Item.IsExpanded;
+                }
+            }
+            foreach (var child in node.Children)
+            {
+                RestoreExpansionRecursive(child, expansionMap);
+            }
+        }
+
+        private static void CollapseAllDescendants(BOMTreeNode node)
+        {
+            node.IsExpanded = false;
+            if (node.Item != null) node.Item.IsExpanded = false;
+            foreach (var child in node.Children)
+            {
+                CollapseAllDescendants(child);
+            }
         }
 
         public void RedrawTree()
@@ -150,10 +272,131 @@ namespace BOMManager.UI.Controls
             };
         }
 
+        private static UIElement CreateEyeIcon(bool isOpen)
+        {
+            var canvas = new Canvas
+            {
+                Width = 16,
+                Height = 16,
+                Background = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                LayoutTransform = new ScaleTransform(1.2, 1.2)
+            };
+
+            var blackBrush = new SolidColorBrush(Color.FromRgb(0x0F, 0x17, 0x2A));
+
+            if (isOpen)
+            {
+                // 눈 뜬 눈알 (Black Open Eye - 완전히 검은 눈동자)
+                var eyeOutline = new Path
+                {
+                    Stroke = blackBrush,
+                    StrokeThickness = 1.5,
+                    Fill = Brushes.White,
+                    Data = Geometry.Parse("M 1.5,8 C 4,3 12,3 14.5,8 C 12,13 4,13 1.5,8 Z")
+                };
+
+                var pupil = new Ellipse
+                {
+                    Width = 5.5,
+                    Height = 5.5,
+                    Fill = blackBrush
+                };
+                Canvas.SetLeft(pupil, 5.25);
+                Canvas.SetTop(pupil, 5.25);
+
+                canvas.Children.Add(eyeOutline);
+                canvas.Children.Add(pupil);
+            }
+            else
+            {
+                // 눈 감은 눈알 (Set B: Black Curved Line with Lashes)
+                var eyeClosed = new Path
+                {
+                    Stroke = blackBrush,
+                    StrokeThickness = 1.6,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = Geometry.Parse("M 2,6.5 C 4.5,11.5 11.5,11.5 14,6.5")
+                };
+
+                var lash1 = new Path
+                {
+                    Stroke = blackBrush,
+                    StrokeThickness = 1.3,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = Geometry.Parse("M 3,8 L 1.5,10.5")
+                };
+                var lash2 = new Path
+                {
+                    Stroke = blackBrush,
+                    StrokeThickness = 1.3,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = Geometry.Parse("M 5.5,9.8 L 4.5,12.8")
+                };
+                var lash3 = new Path
+                {
+                    Stroke = blackBrush,
+                    StrokeThickness = 1.3,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = Geometry.Parse("M 8,10.5 L 8,13.8")
+                };
+                var lash4 = new Path
+                {
+                    Stroke = blackBrush,
+                    StrokeThickness = 1.3,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = Geometry.Parse("M 10.5,9.8 L 11.5,12.8")
+                };
+                var lash5 = new Path
+                {
+                    Stroke = blackBrush,
+                    StrokeThickness = 1.3,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round,
+                    Data = Geometry.Parse("M 13,8 L 14.5,10.5")
+                };
+
+                canvas.Children.Add(eyeClosed);
+                canvas.Children.Add(lash1);
+                canvas.Children.Add(lash2);
+                canvas.Children.Add(lash3);
+                canvas.Children.Add(lash4);
+                canvas.Children.Add(lash5);
+            }
+
+            return canvas;
+        }
+
         private FrameworkElement CreateNodeCard(BOMTreeNode node)
         {
             var item = node.Item;
             bool isHighlighted = IsSelectedOrAncestor(node);
+
+            var cardContainer = new Grid
+            {
+                Width = node.Width,
+                Height = node.Height,
+                Tag = node,
+                SnapsToDevicePixels = true,
+                UseLayoutRounding = true
+            };
+
+            var shadowBorder = new Border
+            {
+                Width = node.Width,
+                Height = node.Height,
+                CornerRadius = new CornerRadius(6),
+                Background = Brushes.White,
+                Effect = isHighlighted ? (DropShadowEffect)Resources["HoverShadow"] : (DropShadowEffect)Resources["CardShadow"],
+                IsHitTestVisible = false
+            };
+            cardContainer.Children.Add(shadowBorder);
 
             var cardBorder = new Border
             {
@@ -161,8 +404,8 @@ namespace BOMManager.UI.Controls
                 Height = node.Height,
                 CornerRadius = new CornerRadius(6),
                 BorderThickness = new Thickness(isHighlighted ? 3.75 : (node.TreeDepth == 0 ? 3.0 : 2.25)),
-                Background = (SolidColorBrush)new BrushConverter().ConvertFrom(node.NodeBackground)!,
-                BorderBrush = isHighlighted ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(node.NodeBorderBrush)!,
+                Background = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBackground(node))!,
+                BorderBrush = isHighlighted ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBorderBrush(node))!,
                 Padding = new Thickness(8, 4, 8, 4),
                 SnapsToDevicePixels = true,
                 UseLayoutRounding = true,
@@ -175,16 +418,17 @@ namespace BOMManager.UI.Controls
             TextOptions.SetTextHintingMode(cardBorder, TextHintingMode.Auto);
             RenderOptions.SetClearTypeHint(cardBorder, ClearTypeHint.Enabled);
             RenderOptions.SetBitmapScalingMode(cardBorder, BitmapScalingMode.HighQuality);
+            cardContainer.Children.Add(cardBorder);
 
             var shadow = (DropShadowEffect)Resources["CardShadow"];
-            cardBorder.Effect = isHighlighted ? (DropShadowEffect)Resources["HoverShadow"] : shadow;
+            var hoverShadow = (DropShadowEffect)Resources["HoverShadow"];
 
             // Hover effects
             cardBorder.MouseEnter += (s, e) =>
             {
                 if (!_isDraggingCard && !IsSelectedOrAncestor(node))
                 {
-                    cardBorder.Effect = (DropShadowEffect)Resources["HoverShadow"];
+                    shadowBorder.Effect = hoverShadow;
                     cardBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6));
                 }
             };
@@ -192,8 +436,8 @@ namespace BOMManager.UI.Controls
             {
                 if (!_isDraggingCard && !IsSelectedOrAncestor(node))
                 {
-                    cardBorder.Effect = shadow;
-                    cardBorder.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom(node.NodeBorderBrush)!;
+                    shadowBorder.Effect = shadow;
+                    cardBorder.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBorderBrush(node))!;
                 }
             };
 
@@ -206,7 +450,8 @@ namespace BOMManager.UI.Controls
                     if (FindVisualParent<ComboBox>(dep) != null ||
                         FindVisualParent<Button>(dep) != null ||
                         FindVisualParent<CheckBox>(dep) != null ||
-                        FindVisualParent<TextBox>(dep) != null)
+                        FindVisualParent<TextBox>(dep) != null ||
+                        (FindVisualParent<Border>(dep)?.Tag as string == "DwgEditor"))
                     {
                         _dragCandidateNode = null;
                         return;
@@ -274,15 +519,15 @@ namespace BOMManager.UI.Controls
             cardBorder.DragLeave += (s, e) =>
             {
                 bool isHilite = IsSelectedOrAncestor(node);
-                cardBorder.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(node.NodeBackground)!;
-                cardBorder.BorderBrush = isHilite ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(node.NodeBorderBrush)!;
+                cardBorder.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBackground(node))!;
+                cardBorder.BorderBrush = isHilite ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBorderBrush(node))!;
             };
 
             cardBorder.Drop += (s, e) =>
             {
                 bool isHilite = IsSelectedOrAncestor(node);
-                cardBorder.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(node.NodeBackground)!;
-                cardBorder.BorderBrush = isHilite ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(node.NodeBorderBrush)!;
+                cardBorder.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBackground(node))!;
+                cardBorder.BorderBrush = isHilite ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBorderBrush(node))!;
 
                 if (e.Data.GetDataPresent("BOMTreeNode"))
                 {
@@ -307,7 +552,8 @@ namespace BOMManager.UI.Controls
                     if (FindVisualParent<ComboBox>(dep) != null ||
                         FindVisualParent<Button>(dep) != null ||
                         FindVisualParent<CheckBox>(dep) != null ||
-                        FindVisualParent<TextBox>(dep) != null)
+                        FindVisualParent<TextBox>(dep) != null ||
+                        (FindVisualParent<Border>(dep)?.Tag as string == "DwgEditor"))
                     {
                         return;
                     }
@@ -351,262 +597,110 @@ namespace BOMManager.UI.Controls
             DockPanel.SetDock(badgeBorder, Dock.Left);
             topPanel.Children.Add(badgeBorder);
 
-            // Isolate Circle Button (🟢 / 🔴) on far Right
+            // Isolate Eye Button (👁️ 눈 뜬 눈알 / 😌 눈 감은 눈알) on far Right
+            bool isRootNode = (node.TreeDepth == 0);
+            bool isEyeOpen = isRootNode || item.IsOpaque;
+
             var btnIsolate = new Button
             {
-                Width = 20,
-                Height = 20,
+                Width = 24,
+                Height = 24,
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(0),
                 Cursor = Cursors.Hand,
-                ToolTip = "SolidWorks에서 이 부품만 불투명(🟢) 강조 / 투명(🔴) 토글"
+                ToolTip = isRootNode ? "클릭 시 전체 부품 모두 표시(불투명 복원)" : (isEyeOpen ? "눈 뜬 상태(표시 중): 클릭 시 이 항목만 격리 표시" : "눈 감은 상태(숨김): 클릭 시 전체 다시 표시")
             };
 
-            var ellipse = new Ellipse
-            {
-                Width = 12,
-                Height = 12,
-                Fill = item.IsOpaque ? new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)) : new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)),
-                Stroke = item.IsOpaque ? new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69)) : new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)),
-                StrokeThickness = 1.5
-            };
-            btnIsolate.Content = ellipse;
+            btnIsolate.Content = CreateEyeIcon(isEyeOpen);
 
             btnIsolate.Click += (s, e) =>
             {
                 e.Handled = true;
-                item.IsOpaque = !item.IsOpaque;
-                ellipse.Fill = item.IsOpaque ? new SolidColorBrush(Color.FromRgb(0x10, 0xB9, 0x81)) : new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-                ellipse.Stroke = item.IsOpaque ? new SolidColorBrush(Color.FromRgb(0x05, 0x96, 0x69)) : new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
 
-                if (_swService != null)
+                if (isRootNode)
                 {
-                    _swService.SetComponentsTransparency(new List<BOMItem> { item }, _rawItems, isolateMode: true);
+                    // Root에 있는 원은 항상 초록색이며, 누르면 모두 표시
+                    foreach (var raw in _rawItems)
+                    {
+                        raw.IsOpaque = true;
+                    }
+                    if (_swService != null)
+                    {
+                        _swService.ShowAllOpaque(_rawItems);
+                    }
                 }
+                else
+                {
+                    bool isAllGreen = _rawItems.All(r => r.IsOpaque);
+
+                    if (isAllGreen)
+                    {
+                        // 1. All 초록색 상태 -> 클릭한 항목만 격리 표시
+                        if (_swService != null)
+                        {
+                            _swService.SetComponentsTransparency(new List<BOMItem> { item }, _rawItems, isolateMode: true);
+                        }
+                        else
+                        {
+                            var subDescendants = new HashSet<BOMItem>();
+                            CollectDescendantItems(node, subDescendants);
+                            subDescendants.Add(item);
+                            foreach (var raw in _rawItems)
+                            {
+                                raw.IsOpaque = subDescendants.Contains(raw);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // 2. 이미 격리된 상태에서 초록색 항목을 다시 누르면 -> 전체 다 표시
+                        if (item.IsOpaque)
+                        {
+                            foreach (var raw in _rawItems)
+                            {
+                                raw.IsOpaque = true;
+                            }
+                            if (_swService != null)
+                            {
+                                _swService.ShowAllOpaque(_rawItems);
+                            }
+                        }
+                        else
+                        {
+                            // 빨간색 항목을 누르면 -> 해당 항목으로 새로 격리
+                            if (_swService != null)
+                            {
+                                _swService.SetComponentsTransparency(new List<BOMItem> { item }, _rawItems, isolateMode: true);
+                            }
+                            else
+                            {
+                                var subDescendants = new HashSet<BOMItem>();
+                                CollectDescendantItems(node, subDescendants);
+                                subDescendants.Add(item);
+                                foreach (var raw in _rawItems)
+                                {
+                                    raw.IsOpaque = subDescendants.Contains(raw);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                RedrawTree();
+                HierarchyChanged?.Invoke(this, EventArgs.Empty);
             };
 
             DockPanel.SetDock(btnIsolate, Dock.Right);
             topPanel.Children.Add(btnIsolate);
 
-            // Sub1/Sub-Assy (excluding Root) -> Assy Category Dropdown & Apply CheckBox
-            if (node.TreeDepth > 0 && node.IsSubassembly)
+            // Sub1/Sub-Assy (excluding Root) & Part Dropdown Controls (Only active in Step 1: Assy 정리)
+            if (_currentStep == BomProcessStep.Step1Assy)
             {
-                // Apply Checkbox (placed to the left of Isolate Circle button)
-                var chkApply = new CheckBox
+                if (node.TreeDepth > 0 && node.IsSubassembly)
                 {
-                    Content = "적용",
-                    FontSize = 12,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55)),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(4, 0, 4, 0),
-                    Cursor = Cursors.Hand,
-                    ToolTip = "체크 시 하위 Assy/부품 트리 표시",
-                    IsChecked = node.IsExpanded
-                };
-
-                chkApply.Checked += (s, e) =>
-                {
-                    node.IsExpanded = true;
-                    RedrawTree();
-                    HierarchyChanged?.Invoke(this, EventArgs.Empty);
-                };
-
-                chkApply.Unchecked += (s, e) =>
-                {
-                    node.IsExpanded = false;
-                    RedrawTree();
-                    HierarchyChanged?.Invoke(this, EventArgs.Empty);
-                };
-
-                DockPanel.SetDock(chkApply, Dock.Right);
-                topPanel.Children.Add(chkApply);
-
-                // ComboBox for Assy Category Selection
-                var cboAssy = new ComboBox
-                {
-                    Height = 24,
-                    Margin = new Thickness(4, 0, 2, 0),
-                    FontSize = 12,
-                    FontWeight = FontWeights.Bold,
-                    VerticalContentAlignment = VerticalAlignment.Center,
-                    Cursor = Cursors.Hand,
-                    ToolTip = "Assy. 종류 선택 (선택 시 하위 트리가 자동으로 펼쳐집니다)"
-                };
-
-                // ELASTOMER ASSY 하위에 있는 ASSY -> FRAME ASSY, BOTTOM COVER ASSY
-                bool isUnderElastomer = false;
-                var curParent = node.Parent;
-                while (curParent != null)
-                {
-                    string pCat = (curParent.Item.AssyCategory ?? "").ToUpperInvariant();
-                    string pName = (curParent.Item.PartName ?? "").ToUpperInvariant();
-                    if (pCat.Contains("ELASTOMER") || pName.Contains("ELASTOMER"))
-                    {
-                        isUnderElastomer = true;
-                        break;
-                    }
-                    curParent = curParent.Parent;
-                }
-
-                cboAssy.Items.Add(new ComboBoxItem { Content = "[ Assy. 선택 ]", Tag = "" });
-                if (isUnderElastomer)
-                {
-                    cboAssy.Items.Add(new ComboBoxItem { Content = "FRAME ASSY", Tag = "FRAME Assy." });
-                    cboAssy.Items.Add(new ComboBoxItem { Content = "BOTTOM COVER ASSY", Tag = "Bottom Cover Assy." });
-                }
-                else
-                {
-                    cboAssy.Items.Add(new ComboBoxItem { Content = "LID ASSY", Tag = "LID Assy" });
-                    cboAssy.Items.Add(new ComboBoxItem { Content = "ELASTOMER ASSY", Tag = "Elastomer Assy." });
-                    cboAssy.Items.Add(new ComboBoxItem { Content = "BSS ASSY", Tag = "BSS Assy." });
-                }
-
-                string currentCat = (item.AssyCategory ?? "").Trim();
-                int selectedIdx = 0;
-                for (int i = 1; i < cboAssy.Items.Count; i++)
-                {
-                    if (cboAssy.Items[i] is ComboBoxItem cbi)
-                    {
-                        string tag = (cbi.Tag as string ?? "").Trim();
-                        string content = (cbi.Content as string ?? "").Trim();
-                        if (!string.IsNullOrEmpty(currentCat) &&
-                            (string.Equals(tag, currentCat, StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(content, currentCat, StringComparison.OrdinalIgnoreCase) ||
-                             tag.IndexOf(currentCat, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                             currentCat.IndexOf(tag, StringComparison.OrdinalIgnoreCase) >= 0))
-                        {
-                            selectedIdx = i;
-                            break;
-                        }
-                    }
-                }
-                cboAssy.SelectedIndex = selectedIdx;
-
-                cboAssy.SelectionChanged += (s, e) =>
-                {
-                    if (cboAssy.SelectedItem is ComboBoxItem selItem)
-                    {
-                        string tagVal = selItem.Tag as string ?? "";
-                        if (!string.Equals(item.AssyCategory, tagVal, StringComparison.OrdinalIgnoreCase))
-                        {
-                            item.AssyCategory = tagVal;
-                            item.CheckModified();
-                            if (!string.IsNullOrEmpty(tagVal))
-                            {
-                                node.IsExpanded = true;
-                            }
-                            RedrawTree();
-                            HierarchyChanged?.Invoke(this, EventArgs.Empty);
-                        }
-                    }
-                };
-
-                topPanel.Children.Add(cboAssy);
-            }
-            // Part Nodes: Root 직속 파트, ELASTOMER ASSY 하위 파트, BSS ASSY 하위 파트 등
-            else if (!node.IsSubassembly)
-            {
-                // 상위 어셈블리 카테고리 파악
-                string parentAssyCat = "";
-                var curP = node.Parent;
-                while (curP != null)
-                {
-                    string pCat = (curP.Item.AssyCategory ?? "").ToUpperInvariant();
-                    string pName = (curP.Item.PartName ?? "").ToUpperInvariant();
-                    if (pCat.Contains("FRAME") || pName.Contains("FRAME"))
-                    {
-                        parentAssyCat = "FRAME";
-                        break;
-                    }
-                    else if (pCat.Contains("BOTTOM") || pName.Contains("BOTTOM"))
-                    {
-                        parentAssyCat = "BOTTOM";
-                        break;
-                    }
-                    else if (pCat.Contains("ELASTOMER") || pName.Contains("ELASTOMER"))
-                    {
-                        parentAssyCat = "ELASTOMER";
-                        break;
-                    }
-                    else if (pCat.Contains("BSS") || pName.Contains("BSS"))
-                    {
-                        parentAssyCat = "BSS";
-                        break;
-                    }
-                    else if (pCat.Contains("LID") || pName.Contains("LID"))
-                    {
-                        parentAssyCat = "LID";
-                        break;
-                    }
-                    else if (curP.TreeDepth == 0)
-                    {
-                        parentAssyCat = "ROOT";
-                        break;
-                    }
-                    curP = curP.Parent;
-                }
-
-                var partOptions = new List<(string Display, string Tag)>();
-                if (parentAssyCat == "ELASTOMER")
-                {
-                    partOptions.Add(("[ 선택 ]", ""));
-                    partOptions.Add(("ELASTOMER", "ELASTOMER"));
-                    partOptions.Add(("FRAME BOLT", "FRAME bolt"));
-                }
-                else if (parentAssyCat == "FRAME")
-                {
-                    partOptions.Add(("[ 선택 ]", ""));
-                    partOptions.Add(("FRAME", "FRAME"));
-                    partOptions.Add(("FRAME BUSH", "FRAME BUSH"));
-                    partOptions.Add(("BUSH BOLT", "BUSH BOLT"));
-                    partOptions.Add(("BLOCK", "BLOCK"));
-                }
-                else if (parentAssyCat == "BOTTOM")
-                {
-                    partOptions.Add(("[ 선택 ]", ""));
-                    partOptions.Add(("BOTTOM COVER", "Bottom Cover"));
-                }
-                else if (parentAssyCat == "BSS")
-                {
-                    partOptions.Add(("[ 선택 ]", ""));
-                    partOptions.Add(("BSS BASE", "BSS BASE"));
-                    partOptions.Add(("INSULATION FILM", "INSULATION FILM"));
-                }
-                else if (parentAssyCat == "LID")
-                {
-                    partOptions.Add(("[ 선택 ]", ""));
-                    partOptions.Add(("COVER", "Cover"));
-                    partOptions.Add(("PUSHER", "Pusher"));
-                    partOptions.Add(("PUSHER BOLT", "Pusher bolt"));
-                    partOptions.Add(("PUSHER SPRING", "Pusher spring"));
-                    partOptions.Add(("LID BOLT", "Lid bolt"));
-                }
-                else if (parentAssyCat == "ROOT" || node.TreeDepth == 1)
-                {
-                    partOptions.Add(("[ 선택 ]", ""));
-                    partOptions.Add(("FRAME BOLT", "FRAME bolt"));
-                    partOptions.Add(("DEVICE", "DEVICE"));
-                    partOptions.Add(("PCB", "PCB"));
-                }
-
-                if (partOptions.Count > 0)
-                {
-                    var chkPartApply = new CheckBox
-                    {
-                        Content = "적용",
-                        FontSize = 12,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55)),
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(4, 0, 4, 0),
-                        Cursor = Cursors.Hand,
-                        ToolTip = "체크 시 선택된 항목 적용",
-                        IsChecked = !string.IsNullOrEmpty(item.AssyCategory)
-                    };
-
-                    var cboPartCat = new ComboBox
+                    // ComboBox for Assy Category Selection
+                    var cboAssy = new ComboBox
                     {
                         Height = 24,
                         Margin = new Thickness(4, 0, 2, 0),
@@ -614,85 +708,416 @@ namespace BOMManager.UI.Controls
                         FontWeight = FontWeights.Bold,
                         VerticalContentAlignment = VerticalAlignment.Center,
                         Cursor = Cursors.Hand,
-                        ToolTip = "부품 카테고리 선택"
+                        ToolTip = "Assy. 종류 선택 (선택 시 하위 트리가 자동으로 펼쳐집니다)"
                     };
 
-                    foreach (var opt in partOptions)
+                    // ELASTOMER ASSY 하위에 있는 ASSY -> FRAME ASSY, BOTTOM COVER ASSY
+                    bool isUnderElastomer = false;
+                    var curParent = node.Parent;
+                    while (curParent != null)
                     {
-                        cboPartCat.Items.Add(new ComboBoxItem { Content = opt.Display, Tag = opt.Tag });
+                        string pCat = (curParent.Item.AssyCategory ?? "").ToUpperInvariant();
+                        string pName = (curParent.Item.PartName ?? "").ToUpperInvariant();
+                        if (pCat.Contains("ELASTOMER") || pName.Contains("ELASTOMER"))
+                        {
+                            isUnderElastomer = true;
+                            break;
+                        }
+                        curParent = curParent.Parent;
                     }
 
-                    string currentCat = (item.AssyCategory ?? "").Trim();
-                    int selectedIdx = 0;
-                    for (int i = 1; i < cboPartCat.Items.Count; i++)
+                    cboAssy.Items.Add(new ComboBoxItem { Content = "[ Assy. 선택 ]", Tag = "" });
+                    if (isUnderElastomer)
                     {
-                        if (cboPartCat.Items[i] is ComboBoxItem cbi)
+                        cboAssy.Items.Add(new ComboBoxItem { Content = "FRAME ASSY", Tag = "FRAME ASSY" });
+                        cboAssy.Items.Add(new ComboBoxItem { Content = "BOTTOM COVER ASSY", Tag = "BOTTOM COVER ASSY" });
+                    }
+                    else
+                    {
+                        cboAssy.Items.Add(new ComboBoxItem { Content = "LID ASSY", Tag = "LID ASSY" });
+                        cboAssy.Items.Add(new ComboBoxItem { Content = "ELASTOMER ASSY", Tag = "ELASTOMER ASSY" });
+                        cboAssy.Items.Add(new ComboBoxItem { Content = "BSS ASSY", Tag = "BSS ASSY" });
+                    }
+                    cboAssy.Items.Add(new ComboBoxItem { Content = "Etc.", Tag = "Etc." });
+
+                    string currentCat = (item.AssyCategory ?? "").Trim();
+                    if (string.IsNullOrEmpty(currentCat))
+                    {
+                        currentCat = (item.PartName ?? "").Trim();
+                    }
+                    if (string.IsNullOrEmpty(currentCat) && !string.IsNullOrEmpty(item.FileName))
+                    {
+                        try { currentCat = System.IO.Path.GetFileNameWithoutExtension(item.FileName); } catch { }
+                    }
+                    if (string.IsNullOrEmpty(currentCat) && !string.IsNullOrEmpty(item.FilePath))
+                    {
+                        try { currentCat = System.IO.Path.GetFileNameWithoutExtension(item.FilePath); } catch { }
+                    }
+
+                    string NormalizeKey(string s) => (s ?? "").Replace(" ", "").Replace(".", "").Replace("_", "").Replace("-", "").ToUpperInvariant();
+                    string normTarget = NormalizeKey(currentCat);
+
+                    int selectedIdx = 0;
+                    if (!string.IsNullOrEmpty(normTarget))
+                    {
+                        for (int i = 1; i < cboAssy.Items.Count; i++)
                         {
-                            string tag = (cbi.Tag as string ?? "").Trim();
-                            string content = (cbi.Content as string ?? "").Trim();
-                            if (!string.IsNullOrEmpty(currentCat) &&
-                                (string.Equals(tag, currentCat, StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(content, currentCat, StringComparison.OrdinalIgnoreCase) ||
-                                 tag.IndexOf(currentCat, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                 currentCat.IndexOf(tag, StringComparison.OrdinalIgnoreCase) >= 0))
+                            if (cboAssy.Items[i] is ComboBoxItem cbi)
                             {
-                                selectedIdx = i;
-                                break;
+                                string tag = (cbi.Tag as string ?? "").Trim();
+                                string content = (cbi.Content as string ?? "").Trim();
+                                if (NormalizeKey(tag) == normTarget || NormalizeKey(content) == normTarget)
+                                {
+                                    selectedIdx = i;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (selectedIdx == 0)
+                        {
+                            for (int i = 1; i < cboAssy.Items.Count; i++)
+                            {
+                                if (cboAssy.Items[i] is ComboBoxItem cbi)
+                                {
+                                    string tag = (cbi.Tag as string ?? "").Trim();
+                                    string content = (cbi.Content as string ?? "").Trim();
+                                    string nTag = NormalizeKey(tag);
+                                    string nCont = NormalizeKey(content);
+                                    if ((!string.IsNullOrEmpty(nTag) && (nTag.Contains(normTarget) || normTarget.Contains(nTag))) ||
+                                        (!string.IsNullOrEmpty(nCont) && (nCont.Contains(normTarget) || normTarget.Contains(nCont))))
+                                    {
+                                        selectedIdx = i;
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
-                    cboPartCat.SelectedIndex = selectedIdx;
 
-                    cboPartCat.SelectionChanged += (s, e) =>
+                    cboAssy.SelectedIndex = selectedIdx;
+                    if (selectedIdx > 0 && cboAssy.Items[selectedIdx] is ComboBoxItem matchedItem)
                     {
-                        if (cboPartCat.SelectedItem is ComboBoxItem selItem)
+                        string matchedTag = matchedItem.Tag as string ?? "";
+                        if (string.IsNullOrEmpty(item.AssyCategory) && !string.IsNullOrEmpty(matchedTag))
+                        {
+                            item.AssyCategory = matchedTag;
+                        }
+                    }
+
+                    cboAssy.SelectionChanged += (s, e) =>
+                    {
+                        if (cboAssy.SelectedItem is ComboBoxItem selItem)
                         {
                             string tagVal = selItem.Tag as string ?? "";
                             if (!string.Equals(item.AssyCategory, tagVal, StringComparison.OrdinalIgnoreCase))
                             {
                                 item.AssyCategory = tagVal;
                                 item.CheckModified();
+                                if (!string.IsNullOrEmpty(tagVal))
+                                {
+                                    node.IsExpanded = true;
+                                    item.IsExpanded = true;
+                                }
+                                else
+                                {
+                                    node.IsExpanded = false;
+                                    item.IsExpanded = false;
+                                }
                                 RedrawTree();
                                 HierarchyChanged?.Invoke(this, EventArgs.Empty);
                             }
                         }
                     };
 
-                    chkPartApply.Checked += (s, e) =>
+                    // Approval Checkbox (placed to the left of Isolate Circle button)
+                    var chkApply = new CheckBox
                     {
-                        if (cboPartCat.SelectedItem is ComboBoxItem selItem && !string.IsNullOrEmpty(selItem.Tag as string))
+                        Content = "승인",
+                        FontSize = 12,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55)),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(4, 0, 4, 0),
+                        Cursor = Cursors.Hand,
+                        ToolTip = "체크 시 이 서브어셈블리를 승인(완료) 처리합니다.",
+                        IsChecked = item.IsApproved
+                    };
+
+                    chkApply.Checked += (s, e) =>
+                    {
+                        item.IsApproved = true;
+                        node.IsApproved = true;
+                        node.IsExpanded = true;
+                        item.IsExpanded = true;
+                        if (string.IsNullOrEmpty(item.AssyCategory))
                         {
-                            item.AssyCategory = selItem.Tag as string ?? "";
-                        }
-                        else if (cboPartCat.Items.Count > 1)
-                        {
-                            cboPartCat.SelectedIndex = 1;
-                            item.AssyCategory = (cboPartCat.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+                            if (cboAssy.SelectedItem is ComboBoxItem selItem && !string.IsNullOrEmpty(selItem.Tag as string))
+                            {
+                                item.AssyCategory = selItem.Tag as string ?? "";
+                            }
+                            else if (cboAssy.Items.Count > 1)
+                            {
+                                cboAssy.SelectedIndex = 1;
+                                item.AssyCategory = (cboAssy.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+                            }
                         }
                         item.CheckModified();
                         RedrawTree();
                         HierarchyChanged?.Invoke(this, EventArgs.Empty);
                     };
 
-                    chkPartApply.Unchecked += (s, e) =>
+                    chkApply.Unchecked += (s, e) =>
                     {
-                        item.AssyCategory = "";
-                        cboPartCat.SelectedIndex = 0;
+                        item.IsApproved = false;
+                        node.IsApproved = false;
+                        node.IsExpanded = false;
+                        item.IsExpanded = false;
                         item.CheckModified();
                         RedrawTree();
                         HierarchyChanged?.Invoke(this, EventArgs.Empty);
                     };
 
-                    DockPanel.SetDock(chkPartApply, Dock.Right);
-                    topPanel.Children.Add(chkPartApply);
-                    topPanel.Children.Add(cboPartCat);
+                    DockPanel.SetDock(chkApply, Dock.Right);
+                    topPanel.Children.Add(chkApply);
+                    topPanel.Children.Add(cboAssy);
+                }
+                // Part Nodes: Root 직속 파트, ELASTOMER ASSY 하위 파트, BSS ASSY 하위 파트 등
+                else if (!node.IsSubassembly)
+                {
+                    // 상위 어셈블리 카테고리 파악
+                    string parentAssyCat = "";
+                    var curP = node.Parent;
+                    while (curP != null)
+                    {
+                        string pCat = (curP.Item.AssyCategory ?? "").ToUpperInvariant();
+                        string pName = (curP.Item.PartName ?? "").ToUpperInvariant();
+                        if (pCat.Contains("FRAME") || pName.Contains("FRAME"))
+                        {
+                            parentAssyCat = "FRAME";
+                            break;
+                        }
+                        else if (pCat.Contains("BOTTOM") || pName.Contains("BOTTOM"))
+                        {
+                            parentAssyCat = "BOTTOM";
+                            break;
+                        }
+                        else if (pCat.Contains("ELASTOMER") || pName.Contains("ELASTOMER"))
+                        {
+                            parentAssyCat = "ELASTOMER";
+                            break;
+                        }
+                        else if (pCat.Contains("BSS") || pName.Contains("BSS"))
+                        {
+                            parentAssyCat = "BSS";
+                            break;
+                        }
+                        else if (pCat.Contains("LID") || pName.Contains("LID"))
+                        {
+                            parentAssyCat = "LID";
+                            break;
+                        }
+                        else if (curP.TreeDepth == 0)
+                        {
+                            parentAssyCat = "ROOT";
+                            break;
+                        }
+                        curP = curP.Parent;
+                    }
+
+                    var partOptions = new List<(string Display, string Tag)>();
+                    if (parentAssyCat == "ELASTOMER")
+                    {
+                        partOptions.Add(("[ 선택 ]", ""));
+                        partOptions.Add(("ELASTOMER", "ELASTOMER"));
+                        partOptions.Add(("FRAME BOLT", "FRAME bolt"));
+                        partOptions.Add(("Etc.", "Etc."));
+                    }
+                    else if (parentAssyCat == "FRAME")
+                    {
+                        partOptions.Add(("[ 선택 ]", ""));
+                        partOptions.Add(("FRAME", "FRAME"));
+                        partOptions.Add(("FRAME BUSH", "FRAME BUSH"));
+                        partOptions.Add(("BUSH BOLT", "BUSH BOLT"));
+                        partOptions.Add(("BLOCK", "BLOCK"));
+                        partOptions.Add(("Etc.", "Etc."));
+                    }
+                    else if (parentAssyCat == "BOTTOM")
+                    {
+                        partOptions.Add(("[ 선택 ]", ""));
+                        partOptions.Add(("BOTTOM COVER", "Bottom Cover"));
+                        partOptions.Add(("Etc.", "Etc."));
+                    }
+                    else if (parentAssyCat == "BSS")
+                    {
+                        partOptions.Add(("[ 선택 ]", ""));
+                        partOptions.Add(("BSS BASE", "BSS BASE"));
+                        partOptions.Add(("INSULATION FILM", "INSULATION FILM"));
+                        partOptions.Add(("Etc.", "Etc."));
+                    }
+                    else if (parentAssyCat == "LID")
+                    {
+                        partOptions.Add(("[ 선택 ]", ""));
+                        partOptions.Add(("COVER", "Cover"));
+                        partOptions.Add(("COVER BOLT", "Cover bolt"));
+                        partOptions.Add(("COVER SPRING", "Cover spring"));
+                        partOptions.Add(("PUSHER", "Pusher"));
+                        partOptions.Add(("PUSHER BOLT", "Pusher bolt"));
+                        partOptions.Add(("PUSHER SPRING", "Pusher spring"));
+                        partOptions.Add(("DIE PUSHER", "Die Pusher"));
+                        partOptions.Add(("DIE PUSHER BOLT", "Die Pusher bolt"));
+                        partOptions.Add(("DIE PUSHER SPRING", "Die Pusher spring"));
+                        partOptions.Add(("LATCH", "Latch"));
+                        partOptions.Add(("LEVER", "Lever"));
+                        partOptions.Add(("INTERPOSER", "Interposer"));
+                        partOptions.Add(("CAM", "Cam"));
+                        partOptions.Add(("LID BOLT", "Lid bolt"));
+                        partOptions.Add(("Etc.", "Etc."));
+                    }
+                    else if (parentAssyCat == "ROOT" || node.TreeDepth == 1)
+                    {
+                        partOptions.Add(("[ 선택 ]", ""));
+                        partOptions.Add(("FRAME BOLT", "FRAME bolt"));
+                        partOptions.Add(("DEVICE", "DEVICE"));
+                        partOptions.Add(("PCB", "PCB"));
+                        partOptions.Add(("Etc.", "Etc."));
+                    }
+                    else
+                    {
+                        partOptions.Add(("[ 선택 ]", ""));
+                        partOptions.Add(("Etc.", "Etc."));
+                    }
+
+                    if (partOptions.Count > 0)
+                    {
+                        var chkPartApply = new CheckBox
+                        {
+                            Content = "승인",
+                            FontSize = 12,
+                            FontWeight = FontWeights.Bold,
+                            Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55)),
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Margin = new Thickness(4, 0, 4, 0),
+                            Cursor = Cursors.Hand,
+                            ToolTip = "체크 시 선택된 항목 승인",
+                            IsChecked = !string.IsNullOrEmpty(item.AssyCategory)
+                        };
+
+                        var cboPartCat = new ComboBox
+                        {
+                            Height = 24,
+                            Margin = new Thickness(4, 0, 2, 0),
+                            FontSize = 12,
+                            FontWeight = FontWeights.Bold,
+                            VerticalContentAlignment = VerticalAlignment.Center,
+                            Cursor = Cursors.Hand,
+                            ToolTip = "부품 카테고리 선택"
+                        };
+
+                        foreach (var opt in partOptions)
+                        {
+                            cboPartCat.Items.Add(new ComboBoxItem { Content = opt.Display, Tag = opt.Tag });
+                        }
+
+                        string currentCat = (item.AssyCategory ?? "").Trim();
+                        int selectedIdx = 0;
+                        if (!string.IsNullOrEmpty(currentCat))
+                        {
+                            for (int i = 1; i < cboPartCat.Items.Count; i++)
+                            {
+                                if (cboPartCat.Items[i] is ComboBoxItem cbi)
+                                {
+                                    string tag = (cbi.Tag as string ?? "").Trim();
+                                    string content = (cbi.Content as string ?? "").Trim();
+                                    if (string.Equals(tag, currentCat, StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(content, currentCat, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        selectedIdx = i;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (selectedIdx == 0)
+                            {
+                                for (int i = 1; i < cboPartCat.Items.Count; i++)
+                                {
+                                    if (cboPartCat.Items[i] is ComboBoxItem cbi)
+                                    {
+                                        string tag = (cbi.Tag as string ?? "").Trim();
+                                        string content = (cbi.Content as string ?? "").Trim();
+                                        if (tag.IndexOf(currentCat, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                            currentCat.IndexOf(tag, StringComparison.OrdinalIgnoreCase) >= 0)
+                                        {
+                                            selectedIdx = i;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        cboPartCat.SelectedIndex = selectedIdx;
+
+                        cboPartCat.SelectionChanged += (s, e) =>
+                        {
+                            if (cboPartCat.SelectedItem is ComboBoxItem selItem)
+                            {
+                                string tagVal = selItem.Tag as string ?? "";
+                                if (!string.Equals(item.AssyCategory, tagVal, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    item.AssyCategory = tagVal;
+                                    item.CheckModified();
+                                    RedrawTree();
+                                    HierarchyChanged?.Invoke(this, EventArgs.Empty);
+                                }
+                            }
+                        };
+
+                        chkPartApply.Checked += (s, e) =>
+                        {
+                            item.IsApproved = true;
+                            if (cboPartCat.SelectedItem is ComboBoxItem selItem && !string.IsNullOrEmpty(selItem.Tag as string))
+                            {
+                                item.AssyCategory = selItem.Tag as string ?? "";
+                            }
+                            else if (cboPartCat.Items.Count > 1)
+                            {
+                                cboPartCat.SelectedIndex = 1;
+                                item.AssyCategory = (cboPartCat.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+                            }
+                            item.CheckModified();
+                            RedrawTree();
+                            HierarchyChanged?.Invoke(this, EventArgs.Empty);
+                        };
+
+                        chkPartApply.Unchecked += (s, e) =>
+                        {
+                            item.IsApproved = false;
+                            item.AssyCategory = "";
+                            cboPartCat.SelectedIndex = 0;
+                            item.CheckModified();
+                            RedrawTree();
+                            HierarchyChanged?.Invoke(this, EventArgs.Empty);
+                        };
+
+                        DockPanel.SetDock(chkPartApply, Dock.Right);
+                        topPanel.Children.Add(chkPartApply);
+                        topPanel.Children.Add(cboPartCat);
+                    }
                 }
             }
 
             Grid.SetRow(topPanel, 0);
             mainGrid.Children.Add(topPanel);
 
-            // Row 1: Part Name (Left-aligned under header)
+            // Row 1: Part Name (Left) & Material Dropdown (Right in Step 2)
+            var row1Panel = new Grid();
+            row1Panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Col 0: Part Name
+            if (_currentStep == BomProcessStep.Step2DrawingNo && node.TreeDepth > 0)
+            {
+                row1Panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Col 1: Material Dropdown
+            }
+
             var txtPartName = new TextBlock
             {
                 Text = item.PartName,
@@ -703,60 +1128,333 @@ namespace BOMManager.UI.Controls
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 TextAlignment = TextAlignment.Left,
-                Margin = new Thickness(2, 3, 2, 1),
+                Margin = new Thickness(2, 2, 6, 2),
                 ToolTip = item.PartName
             };
-            Grid.SetRow(txtPartName, 1);
-            mainGrid.Children.Add(txtPartName);
+            Grid.SetColumn(txtPartName, 0);
+            row1Panel.Children.Add(txtPartName);
 
-            // Row 2: Middle Details (DrawingNo, Material, Explanation)
-            var detailsPanel = new StackPanel
+            if (_currentStep == BomProcessStep.Step2DrawingNo && node.TreeDepth > 0)
             {
-                Margin = new Thickness(2, 1, 2, 1),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-
-            if (!string.IsNullOrEmpty(item.DrawingNo))
-            {
-                var txtDrawing = new TextBlock
+                // 재질 드롭다운을 파트명 텍스트 오른쪽으로 배치
+                var cboMat = new ComboBox
                 {
-                    Text = $"도번: {item.DrawingNo}",
-                    FontSize = 10,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69)),
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    Margin = new Thickness(0, 0.5, 0, 0.5)
+                    Width = 115,
+                    Height = 24,
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    IsEditable = true,
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Padding = new Thickness(4, 0, 4, 0),
+                    Margin = new Thickness(4, 0, 2, 0),
+                    ToolTip = "재질(Material) 선택 또는 직접 입력",
+                    Cursor = Cursors.Hand
                 };
-                detailsPanel.Children.Add(txtDrawing);
+
+                var matPresets = new List<string>
+                {
+                    "[재질]", "SUS", "SUS304", "AL60", "AL6061", "ULTEM 2300", "Kapton Film", "PEEK", "POM", "MC Nylon", "SKD11", "S45C", "SS400", "Brass", "Rubber", "Etc."
+                };
+
+                if (_rawItems != null)
+                {
+                    foreach (var raw in _rawItems)
+                    {
+                        if (!string.IsNullOrWhiteSpace(raw.Material) && !matPresets.Contains(raw.Material, StringComparer.OrdinalIgnoreCase))
+                        {
+                            matPresets.Add(raw.Material.Trim());
+                        }
+                    }
+                }
+
+                foreach (var mat in matPresets)
+                {
+                    cboMat.Items.Add(new ComboBoxItem { Content = mat, Tag = (mat == "[재질]" ? "" : mat) });
+                }
+
+                string curMat = (item.Material ?? "").Trim();
+                int matchIdx = -1;
+                for (int i = 0; i < cboMat.Items.Count; i++)
+                {
+                    if (cboMat.Items[i] is ComboBoxItem cbi)
+                    {
+                        string tag = cbi.Tag as string ?? "";
+                        string content = cbi.Content as string ?? "";
+                        if (string.Equals(tag, curMat, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(content, curMat, StringComparison.OrdinalIgnoreCase))
+                        {
+                            matchIdx = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (matchIdx >= 0)
+                {
+                    cboMat.SelectedIndex = matchIdx;
+                }
+                else
+                {
+                    cboMat.Text = curMat;
+                }
+
+                cboMat.SelectionChanged += (s, e) =>
+                {
+                    if (cboMat.SelectedItem is ComboBoxItem sel)
+                    {
+                        string val = sel.Tag as string ?? sel.Content as string ?? "";
+                        if (val != item.Material)
+                        {
+                            item.Material = val;
+                            item.CheckModified();
+                            HierarchyChanged?.Invoke(this, EventArgs.Empty);
+                        }
+                    }
+                };
+
+                cboMat.LostFocus += (s, e) =>
+                {
+                    string typed = cboMat.Text.Trim();
+                    if (typed != item.Material)
+                    {
+                        item.Material = typed;
+                        item.CheckModified();
+                        HierarchyChanged?.Invoke(this, EventArgs.Empty);
+                    }
+                };
+
+                Grid.SetColumn(cboMat, 1);
+                row1Panel.Children.Add(cboMat);
             }
 
-            if (!string.IsNullOrEmpty(item.Material))
-            {
-                var txtMat = new TextBlock
-                {
-                    Text = $"재질: {item.Material}",
-                    FontSize = 9.5,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    Margin = new Thickness(0, 0.5, 0, 0.5)
-                };
-                detailsPanel.Children.Add(txtMat);
-            }
+            Grid.SetRow(row1Panel, 1);
+            mainGrid.Children.Add(row1Panel);
 
-            if (!string.IsNullOrEmpty(item.Explanation))
+            // Row 2: Middle Details or Drawing No. Input
+            if (_currentStep == BomProcessStep.Step2DrawingNo && node.TreeDepth > 0)
             {
-                var txtExp = new TextBlock
+                // [Step 2] 파트명 아래 도면번호 입력칸 (100% 폭, 2pt 확대)
+                var dwgContainer = new StackPanel
                 {
-                    Text = $"설명: {item.Explanation}",
-                    FontSize = 9.5,
-                    Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    Margin = new Thickness(0, 0.5, 0, 0.5)
+                    Margin = new Thickness(2, 3, 2, 3),
+                    VerticalAlignment = VerticalAlignment.Center
                 };
-                detailsPanel.Children.Add(txtExp);
-            }
 
-            Grid.SetRow(detailsPanel, 2);
-            mainGrid.Children.Add(detailsPanel);
+                var inputRow = new Grid();
+                inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Col 0: "도번:" 레이블
+                inputRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Col 1: 도번 입력/표시칸 (전체 채움)
+
+                var lblDwg = new TextBlock
+                {
+                    Text = "도번:",
+                    FontSize = 15, // 2pt 확대 (13 -> 15)
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x41, 0x55)),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 8, 0)
+                };
+                Grid.SetColumn(lblDwg, 0);
+                inputRow.Children.Add(lblDwg);
+
+                var dwgHost = new Grid
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(dwgHost, 1);
+
+                // 1. 컬러 파싱된 도면번호 텍스트 표시 영역 (평상시 / 다른 곳 클릭 시 표시)
+                var dwgDisplayBorder = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    MinHeight = 32, // 크기 2pt/4px 확대 (28 -> 32)
+                    Padding = new Thickness(8, 4, 8, 4),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Cursor = Cursors.IBeam,
+                    ToolTip = "클릭하여 도면번호 편집 (OOO-PPPPPGBBBXXXX)",
+                    Tag = "DwgEditor"
+                };
+
+                var tbColorDwg = new TextBlock
+                {
+                    FontFamily = new FontFamily("Consolas, Lucida Console, Segoe UI, Malgun Gothic"),
+                    FontSize = 15.5, // 2pt 확대 (13.5 -> 15.5)
+                    FontWeight = FontWeights.Bold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                dwgDisplayBorder.Child = tbColorDwg;
+
+                // 2. 도면번호 편집 텍스트박스 (클릭 시 활성화)
+                var txtDwg = new TextBox
+                {
+                    Text = item.DrawingNo ?? "",
+                    Height = 32, // 크기 2pt/4px 확대 (28 -> 32)
+                    FontSize = 15.5, // 2pt 확대 (13.5 -> 15.5)
+                    FontFamily = new FontFamily("Consolas, Lucida Console, Segoe UI, Malgun Gothic"),
+                    FontWeight = FontWeights.Bold,
+                    Padding = new Thickness(7, 4, 7, 4),
+                    VerticalContentAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Background = Brushes.White,
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)),
+                    BorderThickness = new Thickness(1.5),
+                    ToolTip = "도면번호 입력 후 다른 곳을 클릭하거나 Enter를 누르면 컬러 파싱 서식으로 적용됩니다.",
+                    Visibility = Visibility.Collapsed
+                };
+
+                void UpdateDwgColorDisplay()
+                {
+                    tbColorDwg.Inlines.Clear();
+                    var parsed = item.ParseDrawingNo();
+                    if (!string.IsNullOrEmpty(parsed.O))
+                    {
+                        tbColorDwg.Inlines.Add(new Run(parsed.O) { Foreground = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)) });
+                        if (!string.IsNullOrEmpty(parsed.Hyphen))
+                            tbColorDwg.Inlines.Add(new Run(parsed.Hyphen) { Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)) });
+                        if (!string.IsNullOrEmpty(parsed.P))
+                            tbColorDwg.Inlines.Add(new Run(parsed.P) { Foreground = new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x06)) });
+                        if (!string.IsNullOrEmpty(parsed.G))
+                            tbColorDwg.Inlines.Add(new Run(parsed.G) { Foreground = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A)) });
+                        if (!string.IsNullOrEmpty(parsed.B))
+                            tbColorDwg.Inlines.Add(new Run(parsed.B) { Foreground = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) });
+                        if (!string.IsNullOrEmpty(parsed.X))
+                            tbColorDwg.Inlines.Add(new Run(parsed.X) { Foreground = new SolidColorBrush(Color.FromRgb(0x93, 0x33, 0xEA)) });
+                    }
+                    else if (!string.IsNullOrWhiteSpace(item.DrawingNo))
+                    {
+                        tbColorDwg.Inlines.Add(new Run(item.DrawingNo) { Foreground = new SolidColorBrush(Color.FromRgb(0x0F, 0x17, 0x2A)) });
+                    }
+                    else
+                    {
+                        tbColorDwg.Inlines.Add(new Run("(도번 입력)") { Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)), FontStyle = FontStyles.Italic, FontWeight = FontWeights.Normal });
+                    }
+                }
+
+                UpdateDwgColorDisplay();
+
+                void ApplyDwgEdit()
+                {
+                    if (txtDwg.Text != item.DrawingNo)
+                    {
+                        item.DrawingNo = txtDwg.Text;
+                        item.CheckModified();
+                        HierarchyChanged?.Invoke(this, EventArgs.Empty);
+                    }
+                    UpdateDwgColorDisplay();
+                    txtDwg.Visibility = Visibility.Collapsed;
+                    dwgDisplayBorder.Visibility = Visibility.Visible;
+
+                    // Update card background according to whether drawing number is entered
+                    cardBorder.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBackground(node))!;
+                    if (!IsSelectedOrAncestor(node))
+                    {
+                        cardBorder.BorderBrush = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBorderBrush(node))!;
+                    }
+                }
+
+                // 클릭 시 편집창으로 전환
+                dwgDisplayBorder.MouseLeftButtonDown += (s, e) =>
+                {
+                    e.Handled = true;
+                    dwgDisplayBorder.Visibility = Visibility.Collapsed;
+                    txtDwg.Visibility = Visibility.Visible;
+                    txtDwg.Text = item.DrawingNo ?? "";
+                    txtDwg.Focus();
+                    txtDwg.SelectAll();
+                };
+
+                // 입력 후 다른 곳을 클릭하면(LostFocus) 컬러 파싱 텍스트로 적용 및 전환
+                txtDwg.LostFocus += (s, e) =>
+                {
+                    ApplyDwgEdit();
+                };
+
+                // Enter 키 입력 시 즉시 확정
+                txtDwg.KeyDown += (s, e) =>
+                {
+                    if (e.Key == Key.Enter)
+                    {
+                        e.Handled = true;
+                        ApplyDwgEdit();
+                        cardBorder.Focus();
+                    }
+                    else if (e.Key == Key.Escape)
+                    {
+                        e.Handled = true;
+                        txtDwg.Text = item.DrawingNo ?? "";
+                        UpdateDwgColorDisplay();
+                        txtDwg.Visibility = Visibility.Collapsed;
+                        dwgDisplayBorder.Visibility = Visibility.Visible;
+                        cardBorder.Focus();
+                    }
+                };
+
+                dwgHost.Children.Add(dwgDisplayBorder);
+                dwgHost.Children.Add(txtDwg);
+                inputRow.Children.Add(dwgHost);
+                dwgContainer.Children.Add(inputRow);
+
+                Grid.SetRow(dwgContainer, 2);
+                mainGrid.Children.Add(dwgContainer);
+            }
+            else
+            {
+                // [Step 1] Middle Details (DrawingNo, Material, Explanation)
+                var detailsPanel = new StackPanel
+                {
+                    Margin = new Thickness(2, 1, 2, 1),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+
+                if (!string.IsNullOrEmpty(item.DrawingNo))
+                {
+                    var txtDrawing = new TextBlock
+                    {
+                        Text = $"도번: {item.DrawingNo}",
+                        FontSize = 10,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69)),
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(0, 0.5, 0, 0.5)
+                    };
+                    detailsPanel.Children.Add(txtDrawing);
+                }
+
+                if (!string.IsNullOrEmpty(item.Material))
+                {
+                    var txtMat = new TextBlock
+                    {
+                        Text = $"재질: {item.Material}",
+                        FontSize = 9.5,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(0, 0.5, 0, 0.5)
+                    };
+                    detailsPanel.Children.Add(txtMat);
+                }
+
+                if (!string.IsNullOrEmpty(item.Explanation))
+                {
+                    var txtExp = new TextBlock
+                    {
+                        Text = $"설명: {item.Explanation}",
+                        FontSize = 9.5,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(0, 0.5, 0, 0.5)
+                    };
+                    detailsPanel.Children.Add(txtExp);
+                }
+
+                Grid.SetRow(detailsPanel, 2);
+                mainGrid.Children.Add(detailsPanel);
+            }
 
             // Row 3: Bottom Info (Q'TY badge, Modified indicator, Expand/Collapse button)
             var bottomPanel = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 1, 0, 0) };
@@ -793,7 +1491,27 @@ namespace BOMManager.UI.Controls
                 leftInfoPanel.Children.Add(commonBadge);
             }
 
-            if (item.IsModified)
+            if (item.IsUserCreated)
+            {
+                var createdBadge = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(0xEE, 0xF2, 0xFF)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0x63, 0x66, 0xF1)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(2),
+                    Padding = new Thickness(4, 1, 4, 1),
+                    Margin = new Thickness(6, 0, 0, 0),
+                    Child = new TextBlock
+                    {
+                        Text = "생성됨",
+                        FontSize = 9,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = new SolidColorBrush(Color.FromRgb(0x43, 0x38, 0xCA))
+                    }
+                };
+                leftInfoPanel.Children.Add(createdBadge);
+            }
+            else if (item.IsModified)
             {
                 var modBadge = new Border
                 {
@@ -817,41 +1535,39 @@ namespace BOMManager.UI.Controls
             DockPanel.SetDock(leftInfoPanel, Dock.Left);
             bottomPanel.Children.Add(leftInfoPanel);
 
-            // Expand/Collapse Button for Subassemblies
+            // Subassembly Child Count Badge (Static display only)
             if (node.HasChildren)
             {
-                var btnToggle = new Button
+                var countBadge = new Border
                 {
-                    Content = $"{node.ExpandToggleGlyph} {node.Children.Count}개",
-                    FontSize = 10,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = node.IsExpanded ? new SolidColorBrush(Color.FromRgb(0x1E, 0x40, 0xAF)) : new SolidColorBrush(Color.FromRgb(0xD9, 0x77, 0x06)),
-                    Background = node.IsExpanded ? new SolidColorBrush(Color.FromRgb(0xDB, 0xEA, 0xFE)) : new SolidColorBrush(Color.FromRgb(0xFE, 0xF3, 0xC7)),
-                    BorderBrush = node.IsExpanded ? new SolidColorBrush(Color.FromRgb(0x93, 0xC5, 0xFD)) : new SolidColorBrush(Color.FromRgb(0xFC, 0xD3, 0x4D)),
+                    Background = new SolidColorBrush(Color.FromRgb(0xF1, 0xF5, 0xF9)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
                     BorderThickness = new Thickness(1),
-                    Padding = new Thickness(6, 2, 6, 2),
-                    Height = 20,
-                    Cursor = Cursors.Hand,
-                    ToolTip = node.IsExpanded ? "하위 부품 접기" : "하위 부품 펼치기"
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(6, 1.5, 6, 1.5),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    ToolTip = $"하위 {node.Children.Count}개 부품/어셈블리"
                 };
 
-                btnToggle.Click += (s, e) =>
+                var txtCount = new TextBlock
                 {
-                    e.Handled = true;
-                    node.IsExpanded = !node.IsExpanded;
-                    RedrawTree();
-                    HierarchyChanged?.Invoke(this, EventArgs.Empty);
+                    Text = $"{node.Children.Count}개",
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69)),
+                    VerticalAlignment = VerticalAlignment.Center
                 };
+                countBadge.Child = txtCount;
 
-                DockPanel.SetDock(btnToggle, Dock.Right);
-                bottomPanel.Children.Add(btnToggle);
+                DockPanel.SetDock(countBadge, Dock.Right);
+                bottomPanel.Children.Add(countBadge);
             }
 
             Grid.SetRow(bottomPanel, 3);
             mainGrid.Children.Add(bottomPanel);
 
             cardBorder.Child = mainGrid;
-            return cardBorder;
+            return cardContainer;
         }
 
         private void BtnCreateSubAssy_Click(object sender, RoutedEventArgs e)
@@ -884,15 +1600,61 @@ namespace BOMManager.UI.Controls
         {
             foreach (UIElement child in nodesCanvas.Children)
             {
-                if (child is Border b && b.Tag is BOMTreeNode n)
+                if (child is FrameworkElement elem && elem.Tag is BOMTreeNode n)
                 {
                     bool isHighlighted = IsSelectedOrAncestor(n);
-                    b.BorderThickness = new Thickness(isHighlighted ? 3.75 : (n.TreeDepth == 0 ? 3.0 : 2.25));
-                    b.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(n.NodeBackground)!;
-                    b.BorderBrush = isHighlighted ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(n.NodeBorderBrush)!;
-                    b.Effect = isHighlighted ? (DropShadowEffect)Resources["HoverShadow"] : (DropShadowEffect)Resources["CardShadow"];
+                    if (elem is Grid g)
+                    {
+                        var borders = g.Children.OfType<Border>().ToList();
+                        if (borders.Count >= 2)
+                        {
+                            var sBorder = borders[0];
+                            var cBorder = borders[1];
+
+                            sBorder.Effect = isHighlighted ? (DropShadowEffect)Resources["HoverShadow"] : (DropShadowEffect)Resources["CardShadow"];
+
+                            cBorder.BorderThickness = new Thickness(isHighlighted ? 3.75 : (n.TreeDepth == 0 ? 3.0 : 2.25));
+                            cBorder.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBackground(n))!;
+                            cBorder.BorderBrush = isHighlighted ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBorderBrush(n))!;
+                        }
+                    }
+                    else if (elem is Border b)
+                    {
+                        b.BorderThickness = new Thickness(isHighlighted ? 3.75 : (n.TreeDepth == 0 ? 3.0 : 2.25));
+                        b.Background = (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBackground(n))!;
+                        b.BorderBrush = isHighlighted ? new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)) : (SolidColorBrush)new BrushConverter().ConvertFrom(GetNodeBorderBrush(n))!;
+                        b.Effect = isHighlighted ? (DropShadowEffect)Resources["HoverShadow"] : (DropShadowEffect)Resources["CardShadow"];
+                    }
                 }
             }
+        }
+
+        private string GetNodeBackground(BOMTreeNode node)
+        {
+            if (_currentStep == BomProcessStep.Step2DrawingNo)
+            {
+                if (node.TreeDepth == 0) return "#ECFDF5";
+                if (!string.IsNullOrWhiteSpace(node.Item.DrawingNo))
+                {
+                    return "#ECFDF5";
+                }
+                return "#FFFFFF"; // Initial / Unfilled state in Step 2
+            }
+            return node.NodeBackground;
+        }
+
+        private string GetNodeBorderBrush(BOMTreeNode node)
+        {
+            if (_currentStep == BomProcessStep.Step2DrawingNo)
+            {
+                if (node.TreeDepth == 0) return "#10B981";
+                if (!string.IsNullOrWhiteSpace(node.Item.DrawingNo))
+                {
+                    return "#10B981";
+                }
+                return "#CBD5E1";
+            }
+            return node.NodeBorderBrush;
         }
 
         private bool IsSelectedOrAncestor(BOMTreeNode node)
@@ -902,12 +1664,37 @@ namespace BOMManager.UI.Controls
             return _selectedNode.IsDescendantOf(node);
         }
 
+        private static void CollectDescendantItems(BOMTreeNode n, HashSet<BOMItem> set)
+        {
+            foreach (var child in n.Children)
+            {
+                set.Add(child.Item);
+                CollectDescendantItems(child, set);
+            }
+        }
+
         private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
         {
             while (child != null)
             {
                 if (child is T parent) return parent;
-                child = VisualTreeHelper.GetParent(child);
+
+                if (child is Visual || child is System.Windows.Media.Media3D.Visual3D)
+                {
+                    child = VisualTreeHelper.GetParent(child);
+                }
+                else if (child is FrameworkContentElement fce)
+                {
+                    child = fce.Parent;
+                }
+                else if (child is ContentElement ce)
+                {
+                    child = ContentOperations.GetParent(ce);
+                }
+                else
+                {
+                    child = LogicalTreeHelper.GetParent(child);
+                }
             }
             return null;
         }
@@ -962,22 +1749,14 @@ namespace BOMManager.UI.Controls
             ApplyZoom(1.0);
         }
 
-        private void BtnTreeExpandAll_Click(object sender, RoutedEventArgs e)
+        private void BtnApplyToFile_Click(object sender, RoutedEventArgs e)
         {
-            foreach (var root in _rootNodes)
-            {
-                root.SetExpandedRecursive(true);
-            }
-            RedrawTree();
+            ApplyToFileRequested?.Invoke(this, EventArgs.Empty);
         }
 
-        private void BtnTreeCollapseAll_Click(object sender, RoutedEventArgs e)
+        private void BtnDevTemp_Click(object sender, RoutedEventArgs e)
         {
-            foreach (var root in _rootNodes)
-            {
-                root.IsExpanded = false;
-            }
-            RedrawTree();
+            DevTempRequested?.Invoke(this, EventArgs.Empty);
         }
 
         #endregion
