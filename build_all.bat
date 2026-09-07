@@ -28,6 +28,7 @@ copy /y "bin\Release\net48\BOM_Manager.exe.config" "dist_standalone\" > nul
 if exist "lib\SolidWorks.Interop.sldworks.dll" copy /y "lib\SolidWorks.Interop.sldworks.dll" "dist_standalone\" > nul
 if exist "lib\SolidWorks.Interop.swconst.dll" copy /y "lib\SolidWorks.Interop.swconst.dll" "dist_standalone\" > nul
 if exist "lib\SolidWorks.Interop.swpublished.dll" copy /y "lib\SolidWorks.Interop.swpublished.dll" "dist_standalone\" > nul
+if exist "lib\Autodesk*.dll" copy /y "lib\Autodesk*.dll" "dist_standalone\" > nul
 
 if not exist "dist_standalone\resources" mkdir "dist_standalone\resources"
 xcopy /s /y /q "resources\*" "dist_standalone\resources\" > nul

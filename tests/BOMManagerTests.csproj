@@ -14,6 +14,7 @@
     <Compile Include="..\core\ISolidWorksService.cs" Link="Core\ISolidWorksService.cs" />
     <Compile Include="..\core\SwConnector.cs" Link="Core\SwConnector.cs" />
     <Compile Include="..\core\MockSwConnector.cs" Link="Core\MockSwConnector.cs" />
+    <Compile Include="..\core\VaultConfigManager.cs" Link="Core\VaultConfigManager.cs" />
     <Compile Include="..\utils\BomExporter.cs" Link="Utils\BomExporter.cs" />
     <Compile Include="TestRunner.cs" />
   </ItemGroup>

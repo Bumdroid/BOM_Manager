@@ -132,8 +132,24 @@ namespace BOMManager
 
             try
             {
+                // 로그인 다이얼로그가 닫힐 때 WPF가 프로세스를 자동 종료하지 않도록 설정
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
                 bool isMock = e.Args.Any(a => a.Equals("--mock", StringComparison.OrdinalIgnoreCase) ||
                                               a.Equals("-m", StringComparison.OrdinalIgnoreCase));
+
+                // Autodesk Vault 로그인 창 표시
+                var loginDialog = new BOMManager.UI.Dialogs.VaultLoginDialog(isMock);
+                bool? dialogResult = loginDialog.ShowDialog();
+
+                if (dialogResult != true)
+                {
+                    Log("사용자가 Vault 로그인을 취소하였거나 창을 닫아 프로그램을 종료합니다.");
+                    Shutdown();
+                    return;
+                }
+
+                Log($"Vault 로그인 완료 (User: {VaultService.CurrentUsername})");
 
                 if (isMock)
                 {
@@ -147,7 +163,11 @@ namespace BOMManager
                 }
 
                 var mainWindow = new MainWindow(_activeService, isMock);
+                MainWindow = mainWindow;
+                ShutdownMode = ShutdownMode.OnMainWindowClose;
                 mainWindow.Show();
+                mainWindow.Activate();
+                mainWindow.Focus();
                 Log("MainWindow 표시 완료");
             }
             catch (Exception ex)

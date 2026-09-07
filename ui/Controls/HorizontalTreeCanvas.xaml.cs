@@ -586,7 +586,7 @@ namespace BOMManager.UI.Controls
             var badgeText = new TextBlock
             {
                 Text = node.NodeTypeBadge,
-                FontSize = 11.5,
+                FontSize = 10,
                 FontWeight = FontWeights.Bold,
                 Foreground = Brushes.White,
                 TextAlignment = TextAlignment.Center,
@@ -1552,7 +1552,7 @@ namespace BOMManager.UI.Controls
                 var txtCount = new TextBlock
                 {
                     Text = $"{node.Children.Count}개",
-                    FontSize = 10,
+                    FontSize = 14,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69)),
                     VerticalAlignment = VerticalAlignment.Center

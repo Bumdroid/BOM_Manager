@@ -4,6 +4,9 @@
              xmlns:local="clr-namespace:BOMManager">
     <Application.Resources>
         <ResourceDictionary>
+            <!-- Global Pretendard Font Family (Pack URI embedded + Local fallback) -->
+            <FontFamily x:Key="AppFontFamily">pack://application:,,,/resources/Fonts/#Pretendard, ./resources/Fonts/#Pretendard, Pretendard, Malgun Gothic, Segoe UI, sans-serif</FontFamily>
+
             <!-- Global Colors & Brushes -->
             <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#E8ECF1"/>
             <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#F8FAFC"/>
@@ -17,8 +20,59 @@
             <SolidColorBrush x:Key="ModifiedAmberFgBrush" Color="#B45309"/>
             <SolidColorBrush x:Key="ModifiedAmberBorderBrush" Color="#FCD34D"/>
 
+            <!-- Global Default Element Styles with Smooth Vector Anti-Aliasing -->
+            <Style TargetType="{x:Type TextBlock}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+            </Style>
+
+            <Style TargetType="{x:Type TextBox}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+            </Style>
+
+            <Style TargetType="{x:Type ComboBox}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+            </Style>
+
+            <Style TargetType="{x:Type CheckBox}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+            </Style>
+
+            <Style TargetType="{x:Type Label}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+            </Style>
+
+            <Style TargetType="{x:Type ContextMenu}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+            </Style>
+
+            <Style TargetType="{x:Type MenuItem}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+            </Style>
+
             <!-- Modern Flat Button Style -->
             <Style TargetType="Button">
+                <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
                 <Setter Property="Background">
                     <Setter.Value>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">

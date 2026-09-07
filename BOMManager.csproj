@@ -30,6 +30,22 @@
       <HintPath>lib\SolidWorks.Interop.swpublished.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
+    <Reference Include="Autodesk.DataManagement.Client.Framework">
+      <HintPath>lib\Autodesk.DataManagement.Client.Framework.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Autodesk.DataManagement.Client.Framework.Vault">
+      <HintPath>lib\Autodesk.DataManagement.Client.Framework.Vault.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Autodesk.Connectivity.WebServices">
+      <HintPath>lib\Autodesk.Connectivity.WebServices.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Autodesk.Connectivity.WebServices.WCF">
+      <HintPath>lib\Autodesk.Connectivity.WebServices.WCF.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
@@ -39,9 +55,12 @@
     <None Include="tests\**" />
     <Compile Remove="dist_standalone\**" />
     <None Include="dist_standalone\**" />
+    <Compile Remove="Ref_temp\**" />
+    <None Include="Ref_temp\**" />
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="resources\Fonts\*.ttf" />
     <None Update="resources\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -49,7 +68,7 @@
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ProjectDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
-    <Copy SourceFiles="lib\SolidWorks.Interop.sldworks.dll;lib\SolidWorks.Interop.swconst.dll;lib\SolidWorks.Interop.swpublished.dll" DestinationFolder="$(TargetDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
-    <Copy SourceFiles="lib\SolidWorks.Interop.sldworks.dll;lib\SolidWorks.Interop.swconst.dll;lib\SolidWorks.Interop.swpublished.dll" DestinationFolder="$(ProjectDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="lib\SolidWorks.Interop.sldworks.dll;lib\SolidWorks.Interop.swconst.dll;lib\SolidWorks.Interop.swpublished.dll;lib\Autodesk.DataManagement.Client.Framework.dll;lib\Autodesk.DataManagement.Client.Framework.Vault.dll;lib\Autodesk.Connectivity.WebServices.dll;lib\Autodesk.Connectivity.WebServices.WCF.dll;lib\Autodesk.DataManagement.Client.Framework.Forms.dll;lib\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll" DestinationFolder="$(TargetDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="lib\SolidWorks.Interop.sldworks.dll;lib\SolidWorks.Interop.swconst.dll;lib\SolidWorks.Interop.swpublished.dll;lib\Autodesk.DataManagement.Client.Framework.dll;lib\Autodesk.DataManagement.Client.Framework.Vault.dll;lib\Autodesk.Connectivity.WebServices.dll;lib\Autodesk.Connectivity.WebServices.WCF.dll;lib\Autodesk.DataManagement.Client.Framework.Forms.dll;lib\Autodesk.DataManagement.Client.Framework.Vault.Forms.dll" DestinationFolder="$(ProjectDir)" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
   </Target>
 </Project>

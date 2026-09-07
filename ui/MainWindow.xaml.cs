@@ -99,6 +99,7 @@ namespace BOMManager.UI
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            UpdateVaultUserDisplay();
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 CheckSwConnectionAndLoad(initial: true, silent: true);
@@ -160,8 +161,82 @@ namespace BOMManager.UI
 
                     imgDwgLogo.Source = dwgBmp;
                 }
+
+                // 3. Duo-tone Transparent Spring Icon for 스프링설계 V1.0
+                string? springLogoPath = FindResourceFile("spring_icon.png") ?? FindResourceFile("spring_icon.jpg") ?? FindResourceFile("spring_logo.png");
+                if (springLogoPath != null && File.Exists(springLogoPath))
+                {
+                    var springBmp = new BitmapImage();
+                    springBmp.BeginInit();
+                    springBmp.UriSource = new Uri(springLogoPath, UriKind.Absolute);
+                    springBmp.CacheOption = BitmapCacheOption.OnLoad;
+                    springBmp.EndInit();
+
+                    imgSpringLogo.Source = springBmp;
+                }
+
+                // 4. Vault Icon for Header Badge
+                string? vaultIconPath = FindResourceFile("Vault_Icon.png") ?? FindResourceFile("vault_icon.png");
+                if (vaultIconPath != null && File.Exists(vaultIconPath))
+                {
+                    var vaultBmp = new BitmapImage();
+                    vaultBmp.BeginInit();
+                    vaultBmp.UriSource = new Uri(vaultIconPath, UriKind.Absolute);
+                    vaultBmp.CacheOption = BitmapCacheOption.OnLoad;
+                    vaultBmp.EndInit();
+
+                    imgHeaderVaultIcon.Source = vaultBmp;
+                }
             }
             catch { }
+        }
+
+        private void UpdateVaultUserDisplay()
+        {
+            try
+            {
+                string user = VaultService.CurrentUsername;
+                if (string.IsNullOrWhiteSpace(user))
+                {
+                    user = VaultConfigManager.Load().LastUsername;
+                }
+                if (string.IsNullOrWhiteSpace(user))
+                {
+                    user = "미로그인";
+                }
+                txtHeaderVaultUser.Text = user;
+            }
+            catch { }
+        }
+
+        private void BtnSettings_Click(object sender, RoutedEventArgs e)
+        {
+            if (btnSettings.ContextMenu != null)
+            {
+                btnSettings.ContextMenu.PlacementTarget = btnSettings;
+                btnSettings.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                btnSettings.ContextMenu.IsOpen = true;
+            }
+        }
+
+        private void MenuItemChangeLogin_Click(object sender, RoutedEventArgs e)
+        {
+            var loginDialog = new VaultLoginDialog(_mockMode, isSwitchAccount: true, forceUncheckAutoLogin: true)
+            {
+                Owner = this
+            };
+            bool? result = loginDialog.ShowDialog();
+            if (result == true)
+            {
+                UpdateVaultUserDisplay();
+                txtStatusBar.Text = $"Vault 사용자가 '{VaultService.CurrentUsername}'(으)로 변경되었습니다.";
+                MessageBox.Show(
+                    this,
+                    $"Vault 계정이 '{VaultService.CurrentUsername}'(으)로 변경되었습니다.",
+                    "Vault 로그인 정보 변경 완료",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
         }
 
         private void CheckSwConnectionAndLoad(bool initial = false, bool silent = false)
@@ -217,7 +292,7 @@ namespace BOMManager.UI
             var stateSnapshot = CaptureCurrentState();
 
             // Load BOM Items
-            bool topLevel = chkTopLevel.IsChecked == true;
+            bool topLevel = false;
             var (items, err) = _swService.LoadBom(topLevelOnly: topLevel);
 
             if (err != null)
@@ -492,16 +567,19 @@ namespace BOMManager.UI
             txtStatusBar.Text = "제작도 V0.0 (Dummy) 모듈: AutoCAD 도면 자동화 준비 중";
         }
 
-        private void ChkTopLevel_Changed(object sender, RoutedEventArgs e)
+        private void BtnNavSpringDesigner_Click(object sender, RoutedEventArgs e)
         {
-            CheckSwConnectionAndLoad(initial: false, silent: false);
+            MessageBox.Show(
+                "🌀 [스프링설계 V1.0] 모듈 안내:\n\n" +
+                "스프링 치수 계산, 하중/응력 해석 및 3D 모델 자동 생성 엔진이 곧 연결됩니다.\n" +
+                "현재 연동 모듈을 준비 중입니다.",
+                "스프링설계 V1.0",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            txtStatusBar.Text = "스프링설계 V1.0 모듈: 연동 엔진 연결 준비 중...";
         }
 
-        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            _filterText = txtSearch.Text;
-            UpdateDisplayedItems();
-        }
 
         private void BtnOpenAssembly_Click(object sender, RoutedEventArgs e)
         {

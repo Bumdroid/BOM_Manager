@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#F8FAFC"
-        FontFamily="Segoe UI, Malgun Gothic">
+        FontFamily="pack://application:,,,/resources/Fonts/#Pretendard, ./resources/Fonts/#Pretendard, Pretendard, Malgun Gothic, Segoe UI, sans-serif">
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

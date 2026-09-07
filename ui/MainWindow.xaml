@@ -5,20 +5,20 @@
         xmlns:converters="clr-namespace:BOMManager.UI.Converters"
         xmlns:models="clr-namespace:BOMManager.Models"
         xmlns:controls="clr-namespace:BOMManager.UI.Controls"
-        TextOptions.TextFormattingMode="Display"
-        TextOptions.TextRenderingMode="ClearType"
-        TextOptions.TextHintingMode="Fixed"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Auto"
+        TextOptions.TextHintingMode="Auto"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         RenderOptions.BitmapScalingMode="HighQuality"
-        RenderOptions.ClearTypeHint="Enabled"
+        RenderOptions.ClearTypeHint="Auto"
         Title="BOM Manager V0.0 - SolidWorks 2021"
         Width="1200" Height="780"
         MinWidth="900" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         Background="#E8ECF1"
-        FontFamily="Segoe UI, Malgun Gothic, sans-serif">
+        FontFamily="pack://application:,,,/resources/Fonts/#Pretendard, ./resources/Fonts/#Pretendard, Pretendard, Malgun Gothic, Segoe UI, sans-serif">
 
     <Window.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolToVis"/>
@@ -154,8 +154,8 @@
                 </Setter.Value>
             </Setter>
             <Setter Property="Foreground" Value="#334155"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Padding" Value="8,6"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="BorderBrush" Value="#CBD5E1"/>
@@ -205,6 +205,39 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Concept 3 Split Button Style -->
+        <Style x:Key="Concept3SplitButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F8FAFC"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#0F172A"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F1F5F9"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#000000"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="16">
@@ -226,10 +259,10 @@
                 Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/> <!-- 0: Navigation Buttons -->
+                    <ColumnDefinition Width="*"/>    <!-- 1: Spacer -->
+                    <ColumnDefinition Width="Auto"/> <!-- 2: Vault User Status Badge -->
+                    <ColumnDefinition Width="Auto"/> <!-- 3: Settings Combo Button (Concept 3) -->
                 </Grid.ColumnDefinitions>
 
                 <!-- Top Module Navigation Columns: BOM Manager (+ Status below) & 제작도 Dummy (+ dwg Status below) -->
@@ -238,8 +271,8 @@
                     <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
                         <!-- BOM Manager V0.0 Button with Pepe Logo (20% Larger) -->
                         <Button x:Name="btnNavBomManager"
-                                Height="48"
-                                Padding="14,4"
+                                Height="52"
+                                Padding="14,2"
                                 Background="#EFF6FF"
                                 BorderBrush="#2563EB"
                                 BorderThickness="2"
@@ -253,8 +286,8 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Image x:Name="imgLogo" Width="34" Height="34" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                                 <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="BOM Manager V0.0" FontSize="15" FontWeight="Bold" Foreground="#1E40AF"/>
-                                    <TextBlock Text="SolidWorks 2021 BOM" FontSize="10" Foreground="#3B82F6"/>
+                                    <TextBlock Text="BOM Manager V0.0" FontSize="16" FontWeight="Bold" Foreground="#1E40AF"/>
+                                    <TextBlock Text="With SolidWorks 2021" FontSize="10" FontWeight="Regular" Foreground="#3B82F6"/>
                                 </StackPanel>
                             </StackPanel>
                         </Button>
@@ -278,8 +311,8 @@
                                          VerticalAlignment="Center"/>
                                 <TextBlock x:Name="txtStatusBadge"
                                            Text="연결 확인 중..."
-                                           FontSize="11"
-                                           FontWeight="Bold"
+                                           FontSize="12"
+                                           FontWeight="Regular"
                                            Foreground="#065F46"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
@@ -289,11 +322,11 @@
                     </StackPanel>
 
                     <!-- 2. 제작도 V0.0 (Dummy) (Button + ~~~.dwg Status Badge Underneath) -->
-                    <StackPanel Margin="0,0,14,0" VerticalAlignment="Center">
+                    <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
                         <!-- 제작도 V0.0 (Dummy) Button (20% Larger with Green CAD Pepe) -->
                         <Button x:Name="btnNavDrawingMaker"
-                                Height="48"
-                                Padding="14,4"
+                                Height="52"
+                                Padding="14,2"
                                 Background="#F8FAFC"
                                 BorderBrush="#CBD5E1"
                                 BorderThickness="1"
@@ -309,8 +342,8 @@
                                     <Image x:Name="imgDwgLogo" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality"/>
                                 </Border>
                                 <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="제작도 V0.0 (Dummy)" FontSize="15" FontWeight="SemiBold" Foreground="#475569"/>
-                                    <TextBlock Text="ACAD 제작도" FontSize="10" Foreground="#94A3B8"/>
+                                    <TextBlock Text="제작도 V0.0 (Dummy)" FontSize="16" FontWeight="SemiBold" Foreground="#475569"/>
+                                    <TextBlock Text="With ACAD 2025" FontSize="10" FontWeight="Regular" Foreground="#94A3B8"/>
                                 </StackPanel>
                             </StackPanel>
                         </Button>
@@ -333,9 +366,68 @@
                                          VerticalAlignment="Center"/>
                                 <TextBlock x:Name="txtDwgStatusBadge"
                                            Text="~~~.dwg (Dummy)"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
+                                           FontSize="12"
+                                           FontWeight="Regular"
                                            Foreground="#64748B"
+                                           TextAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 3. 스프링설계 V1.0 (Button + 연결중... Status Badge Underneath) -->
+                    <StackPanel Margin="0,0,14,0" VerticalAlignment="Center">
+                        <!-- 스프링설계 V1.0 Button -->
+                        <Button x:Name="btnNavSpringDesigner"
+                                Height="52"
+                                Padding="14,2"
+                                Background="#F8FAFC"
+                                BorderBrush="#CBD5E1"
+                                BorderThickness="1"
+                                Cursor="Hand"
+                                Click="BtnNavSpringDesigner_Click">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="7"/>
+                                </Style>
+                            </Button.Resources>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border CornerRadius="4" ClipToBounds="True" Margin="0,0,10,0" Width="34" Height="34" Background="Transparent">
+                                    <Image x:Name="imgSpringLogo" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="스프링설계 V1.0" FontSize="16" FontWeight="SemiBold" Foreground="#475569"/>
+                                    <TextBlock FontSize="10" FontWeight="Regular" Foreground="#94A3B8" LineHeight="12">
+                                        <Run Text="With ACAD 2025"/>
+                                        <LineBreak/>
+                                        <Run Text="SolidWorks 2021" TextDecorations="Strikethrough"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- 스프링 연결 상태 Badge (Underneath 스프링설계 V1.0) -->
+                        <Border x:Name="borderSpringStatusBadge"
+                                CornerRadius="10"
+                                Background="#EFF6FF"
+                                BorderBrush="#BFDBFE"
+                                BorderThickness="1"
+                                Padding="8,3"
+                                Margin="0,4,0,0"
+                                HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Ellipse Width="10" Height="10"
+                                         Fill="#3B82F6"
+                                         Stroke="#2563EB"
+                                         StrokeThickness="1.5"
+                                         Margin="0,0,6,0"
+                                         VerticalAlignment="Center"/>
+                                <TextBlock x:Name="txtSpringStatusBadge"
+                                           Text="연결중..."
+                                           FontSize="12"
+                                           FontWeight="Regular"
+                                           Foreground="#1D4ED8"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"/>
@@ -344,42 +436,92 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Top-Level Only Checkbox -->
-                <CheckBox Grid.Column="2" x:Name="chkTopLevel"
-                          Content="최상위(Top-Level) 부품만"
-                          FontSize="12"
-                          FontWeight="SemiBold"
-                          Foreground="#334155"
-                          VerticalAlignment="Center"
-                          Margin="0,0,14,0"
-                          ToolTip="체크 시 하위 서브어셈블리 내부 부품을 제외하고 최상위 부품만 추출합니다."
-                          Checked="ChkTopLevel_Changed"
-                          Unchecked="ChkTopLevel_Changed"/>
-
-                <!-- Search Filter Box -->
-                <Border Grid.Column="3"
-                        Background="#FFFFFF"
-                        BorderBrush="#CBD5E1"
+                <!-- User Account Status -->
+                <Border Grid.Column="2"
+                        Background="#F0FDF4"
+                        BorderBrush="#BBF7D0"
                         BorderThickness="1"
-                        CornerRadius="4"
-                        Width="220" Height="32"
+                        CornerRadius="7"
+                        Height="38"
+                        Padding="12,0"
+                        Margin="0,0,10,0"
                         VerticalAlignment="Center">
-                    <Grid>
-                        <TextBox x:Name="txtSearch"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Padding="8,5"
-                                 FontSize="12"
-                                 VerticalContentAlignment="Center"
-                                 TextChanged="TxtSearch_TextChanged"/>
-                        <TextBlock Text="🔍 부품명, 재질, 비고 검색..."
-                                   Foreground="#94A3B8"
-                                   FontSize="12"
-                                   Margin="8,6,0,0"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding Text.IsEmpty, ElementName=txtSearch, Converter={StaticResource BoolToVis}}"/>
-                    </Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image x:Name="imgHeaderVaultIcon" Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="사용자: " FontSize="16" FontWeight="Regular" Foreground="#15803D" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtHeaderVaultUser" Text="이두규" FontSize="16" FontWeight="Regular" Foreground="#166534" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Border>
+
+                <!-- Concept 3: Precision Split Combo Button ([ ⚙️ 설정 | ∨ ]) -->
+                <Button x:Name="btnSettings"
+                        Grid.Column="3"
+                        Style="{StaticResource Concept3SplitButtonStyle}"
+                        Height="38"
+                        ToolTip="환경설정 및 로그인 정보 변경"
+                        Click="BtnSettings_Click">
+                    <Grid Height="38">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="28"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left Part: Clean CAD Precision Outline Gear Icon + '설정' Text -->
+                        <Border Grid.Column="0"
+                                Padding="12,0,10,0"
+                                Background="Transparent"
+                                BorderBrush="#CBD5E1"
+                                BorderThickness="0,0,1.5,0"
+                                Margin="0,6,0,6">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Precision Outline Gear Vector Path -->
+                                <Path Data="M 12 1.5 C 11.2 1.5 10.9 2.1 10.8 2.8 L 10.4 4.5 C 9.4 4.9 8.5 5.5 7.7 6.3 L 6.1 5.4 C 5.4 5 4.6 5.3 4.2 6 L 2.7 8.6 C 2.3 9.3 2.5 10.2 3.2 10.7 L 4.6 11.7 C 4.5 12.3 4.5 12.9 4.5 13.5 C 4.5 14.1 4.5 14.7 4.6 15.3 L 3.2 16.3 C 2.5 16.8 2.3 17.7 2.7 18.4 L 4.2 21 C 4.6 21.7 5.4 22 6.1 21.6 L 7.7 20.7 C 8.5 21.5 9.4 22.1 10.4 22.5 L 10.8 24.2 C 10.9 24.9 11.2 25.5 12 25.5 L 15 25.5 C 15.8 25.5 16.1 24.9 16.2 24.2 L 16.6 22.5 C 17.6 22.1 18.5 21.5 19.3 20.7 L 20.9 21.6 C 21.6 22 22.4 21.7 22.8 21 L 24.3 18.4 C 24.7 17.7 24.5 16.8 23.8 16.3 L 22.4 15.3 C 22.5 14.7 22.5 14.1 22.5 13.5 C 22.5 12.9 22.5 12.3 22.4 11.7 L 23.8 10.7 C 24.5 10.2 24.7 9.3 24.3 8.6 L 22.8 6 C 22.4 5.3 21.6 5 20.9 5.4 L 19.3 6.3 C 18.5 5.5 17.6 4.9 16.6 4.5 L 16.2 2.8 C 16.1 2.1 15.8 1.5 15 1.5 Z M 13.5 9 C 16 9 18 11 18 13.5 C 18 16 16 18 13.5 18 C 11 18 9 16 9 13.5 C 9 11 11 9 13.5 9 Z"
+                                      Stroke="#243342"
+                                      StrokeThickness="2.0"
+                                      StrokeLineJoin="Round"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Fill="Transparent"
+                                      Width="18" Height="18"
+                                      Margin="0,0,8,0"
+                                      Stretch="Uniform"
+                                      VerticalAlignment="Center"/>
+                                <TextBlock Text="설정"
+                                           FontSize="16"
+                                           FontWeight="Regular"
+                                           Foreground="#243342"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Right Part: Dropdown Chevron Box -->
+                        <Border Grid.Column="1"
+                                Background="Transparent"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch">
+                            <Path Data="M 0 0 L 4.5 4.5 L 9 0"
+                                  Stroke="#243342"
+                                  StrokeThickness="2.0"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Width="9" Height="5"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="ctxSettingsMenu">
+                            <MenuItem x:Name="menuItemChangeLogin"
+                                      Header="🔑 로그인 정보 변경"
+                                      FontSize="16"
+                                      FontWeight="Regular"
+                                      Padding="14,8"
+                                      Click="MenuItemChangeLogin_Click"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
             </Grid>
         </Border>
 
@@ -403,12 +545,10 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- Summary Button (Assy. 정리 좌측에 1cm(38px) 간격으로 배치 - 기본 선택) -->
                         <Button x:Name="btnSummary"
-                                Height="34"
+                                Height="36"
                                 MinWidth="110"
                                 Padding="16,0"
                                 Margin="0,0,38,0"
-                                FontWeight="Bold"
-                                FontSize="12"
                                 Background="#FFFFFF"
                                 Foreground="#1D4ED8"
                                 BorderBrush="#2563EB"
@@ -421,16 +561,14 @@
                                     <Setter Property="CornerRadius" Value="5"/>
                                 </Style>
                             </Button.Resources>
-                            <TextBlock Text="Summary" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <TextBlock Text="Summary" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
                         </Button>
 
                         <!-- Step 1: ① Assy. 정리 -->
                         <Button x:Name="btnStep1Assy"
-                                Height="34"
+                                Height="36"
                                 MinWidth="130"
                                 Padding="16,0"
-                                FontWeight="Normal"
-                                FontSize="12"
                                 Background="#FFFFFF"
                                 Foreground="#475569"
                                 BorderBrush="#CBD5E1"
@@ -443,21 +581,19 @@
                                     <Setter Property="CornerRadius" Value="5"/>
                                 </Style>
                             </Button.Resources>
-                            <TextBlock Text="① Assy. 정리" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="① Assy. 정리" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </Button>
 
                         <!-- High-Visibility Step Arrow 1 -> 2 -->
                         <Border Background="#E2E8F0" CornerRadius="10" Width="22" Height="22" Margin="10,0" VerticalAlignment="Center">
-                            <TextBlock Text="➔" Foreground="#1E40AF" FontSize="12" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                            <TextBlock Text="➔" Foreground="#1E40AF" FontSize="14" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
                         </Border>
 
                         <!-- Step 2: ② 도번, 재질 입력 -->
                         <Button x:Name="btnStep2DrawingNo"
-                                Height="34"
+                                Height="36"
                                 MinWidth="140"
                                 Padding="16,0"
-                                FontWeight="Normal"
-                                FontSize="12"
                                 Background="#FFFFFF"
                                 Foreground="#475569"
                                 BorderBrush="#CBD5E1"
@@ -470,39 +606,37 @@
                                     <Setter Property="CornerRadius" Value="5"/>
                                 </Style>
                             </Button.Resources>
-                            <TextBlock Text="② 도번, 재질 입력" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="② 도번, 재질 입력" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </Button>
 
                         <!-- High-Visibility Step Arrow 2 -> 3 -->
                         <Border Background="#E2E8F0" CornerRadius="10" Width="22" Height="22" Margin="10,0" VerticalAlignment="Center">
-                            <TextBlock Text="➔" Foreground="#1E40AF" FontSize="12" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                            <TextBlock Text="➔" Foreground="#1E40AF" FontSize="14" FontWeight="ExtraBold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
                         </Border>
 
-                        <!-- Step 3: ③ 무언가 썸팅(개발중) -->
+                        <!-- Step 3: ③ 무언가 세팅 -->
                         <Button x:Name="btnStep3Other"
-                                Height="34"
+                                Height="36"
                                 MinWidth="150"
                                 Padding="16,0"
-                                FontWeight="Normal"
-                                FontSize="12"
                                 Background="#FFFFFF"
                                 Foreground="#475569"
                                 BorderBrush="#CBD5E1"
                                 BorderThickness="1"
                                 Cursor="Hand"
                                 Click="BtnStep3Other_Click"
-                                ToolTip="[Step 3] 무언가 썸팅 (현재 개발중)">
+                                ToolTip="[Step 3] 무언가 세팅 (현재 개발중)">
                             <Button.Resources>
                                 <Style TargetType="Border">
                                     <Setter Property="CornerRadius" Value="5"/>
                                 </Style>
                             </Button.Resources>
-                            <TextBlock Text="③ 무언가 썸팅(개발중)" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="③ 무언가 세팅" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </Button>
                     </StackPanel>
                 </Border>
 
-                <!-- 2) 하단 툴바: 통계 정보 (고유부품, 총수량, 수정됨) & 액션 버튼 (어셈블리 열기, 전체 표시, 새로고침) -->
+                <!-- 2) 하단 툴바: 통계 정보 (고유부품, 총수량, 수정됨) & 액션 버튼 (새로고침) -->
                 <Grid Margin="2,2,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -511,14 +645,14 @@
 
                     <!-- Left: Statistics Summary Values -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="고유 부품 수:" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="lblUniqueParts" Text="0" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,16,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="고유 부품 수:" FontSize="14" FontWeight="Regular" Foreground="#64748B" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="lblUniqueParts" Text="0" FontSize="14" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,16,0" VerticalAlignment="Center"/>
 
-                        <TextBlock Text="총 수량 (Total Q'TY):" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="lblTotalQty" Text="0" FontSize="15" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,16,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="총 수량 (Total Q'TY):" FontSize="14" FontWeight="Regular" Foreground="#64748B" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="lblTotalQty" Text="0" FontSize="14" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,16,0" VerticalAlignment="Center"/>
 
-                        <TextBlock Text="수정됨 (Modified):" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="lblModifiedCount" Text="0" FontSize="15" FontWeight="Bold" Foreground="#D97706" Margin="5,0,0,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="수정됨 (Modified):" FontSize="14" FontWeight="Regular" Foreground="#64748B" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="lblModifiedCount" Text="0" FontSize="14" FontWeight="Bold" Foreground="#D97706" Margin="5,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
                     <!-- Right: Quick Action Buttons (새로고침) -->
@@ -563,8 +697,8 @@
                           SelectionUnit="FullRow"
                           BorderThickness="0"
                           HeadersVisibility="Column"
-                          RowHeight="36"
-                          FontSize="12"
+                          RowHeight="40"
+                          FontSize="14"
                           Foreground="#1E293B"
                           CellEditEnding="DgBom_CellEditEnding">
 
@@ -599,6 +733,7 @@
                                     <Border Background="{Binding IsModified, Converter={StaticResource ModBg}}"
                                             Padding="4,2">
                                         <TextBlock Text="{Binding ItemNoDisplay}"
+                                                   FontSize="14"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    FontWeight="{Binding IsModified, Converter={StaticResource ModFg}, ConverterParameter=Bold}"
@@ -667,20 +802,21 @@
                                             <TextBlock Visibility="{Binding IsSubassembly, Converter={StaticResource BoolToVis}}"
                                                        Text="{Binding SubassemblyIndent}"
                                                        VerticalAlignment="Center"
+                                                       FontSize="14"
                                                        FontFamily="Consolas, Lucida Console, Courier New"
                                                        xml:space="preserve"/>
 
                                             <!-- 2. 서브어셈블리 삼각형 토글 버튼 (▼ / ▶) 및 5px 간격 -->
                                             <Button Visibility="{Binding IsSubassembly, Converter={StaticResource BoolToVis}}"
                                                     Content="{Binding IsExpanded, Converter={StaticResource TriangleGlyph}}"
-                                                    FontSize="10"
+                                                    FontSize="11"
                                                     FontWeight="Bold"
                                                     Foreground="#334155"
                                                     Background="Transparent"
                                                     BorderThickness="0"
                                                     Padding="0"
                                                     Margin="0,0,5,0"
-                                                    Width="16" Height="16"
+                                                    Width="18" Height="18"
                                                     Cursor="Hand"
                                                     Click="BtnTreeToggle_Click"
                                                     ToolTip="하위 부품 펼치기/접기"/>
@@ -689,12 +825,14 @@
                                             <TextBlock Visibility="{Binding IsSubassembly, Converter={StaticResource BoolToVisInvert}}"
                                                        Text="{Binding PartPrefix}"
                                                        VerticalAlignment="Center"
+                                                       FontSize="14"
                                                        Foreground="#64748B"
                                                        FontFamily="Consolas, Lucida Console, Courier New"
                                                        xml:space="preserve"/>
 
                                             <!-- 4. 순수 파트명 -->
                                             <TextBlock Text="{Binding PartName}"
+                                                       FontSize="14"
                                                        VerticalAlignment="Center"
                                                        FontWeight="{Binding IsSubassembly, Converter={StaticResource ModFg}, ConverterParameter=SubassemblyBold}"
                                                        Foreground="{Binding IsPartNameModified, Converter={StaticResource ModFg}}"/>
@@ -705,7 +843,7 @@
                             <DataGridTemplateColumn.CellEditingTemplate>
                                 <DataTemplate DataType="{x:Type models:BOMItem}">
                                     <TextBox Text="{Binding PartName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                             FontSize="12"
+                                             FontSize="14"
                                              FontWeight="Bold"
                                              Padding="4,2"
                                              VerticalContentAlignment="Center"/>
@@ -720,6 +858,8 @@
                                     <Border Background="{Binding IsQtyModified, Converter={StaticResource ModBg}}"
                                             Padding="4,2">
                                         <TextBlock Text="{Binding Qty}"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    Foreground="{Binding IsQtyModified, Converter={StaticResource ModFg}}"/>
@@ -731,7 +871,7 @@
                                     <TextBox Text="{Binding Qty, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              HorizontalContentAlignment="Center"
                                              VerticalContentAlignment="Center"
-                                             FontSize="12"
+                                             FontSize="14"
                                              Padding="4,2"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellEditingTemplate>
@@ -744,9 +884,10 @@
                                     <Border Background="{Binding IsMaterialModified, Converter={StaticResource ModBg}}"
                                             Padding="6,2">
                                         <TextBlock Text="{Binding Material}"
+                                                   FontSize="14"
                                                    VerticalAlignment="Center"
                                                    Foreground="{Binding IsMaterialModified, Converter={StaticResource ModFg}}"
-                                                   FontWeight="SemiBold"/>
+                                                   FontWeight="Regular"/>
                                     </Border>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -759,7 +900,7 @@
                                     <Border Background="{Binding IsDrawingNoModified, Converter={StaticResource ModBg}}"
                                             Padding="6,2">
                                         <TextBlock FontFamily="Consolas, Lucida Console, Segoe UI, Malgun Gothic"
-                                                   FontSize="12"
+                                                   FontSize="14"
                                                    VerticalAlignment="Center">
                                             <!-- O: 빨간색 (Red) -->
                                             <Run Text="{Binding DrawingNoPartO, Mode=OneWay}" Foreground="#DC2626" FontWeight="Bold"/>
@@ -782,8 +923,8 @@
                                     <TextBox Text="{Binding DrawingNo, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              FontFamily="Consolas, Lucida Console, Segoe UI, Malgun Gothic"
                                              VerticalContentAlignment="Center"
-                                             FontSize="12"
-                                             FontWeight="Bold"
+                                             FontSize="14"
+                                             FontWeight="Regular"
                                              Padding="4,2"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellEditingTemplate>
@@ -796,6 +937,7 @@
                                     <Border Background="{Binding IsRevModified, Converter={StaticResource ModBg}}"
                                             Padding="4,2">
                                         <TextBlock Text="{Binding Rev}"
+                                                   FontSize="14"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    Foreground="{Binding IsRevModified, Converter={StaticResource ModFg}}"/>
@@ -807,7 +949,7 @@
                                     <TextBox Text="{Binding Rev, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              HorizontalContentAlignment="Center"
                                              VerticalContentAlignment="Center"
-                                             FontSize="12"
+                                             FontSize="14"
                                              Padding="4,2"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellEditingTemplate>
@@ -820,6 +962,7 @@
                                     <Border Background="{Binding IsExplanationModified, Converter={StaticResource ModBg}}"
                                             Padding="6,2">
                                         <TextBlock Text="{Binding Explanation}"
+                                                   FontSize="14"
                                                    VerticalAlignment="Center"
                                                    Foreground="{Binding IsExplanationModified, Converter={StaticResource ModFg}}"/>
                                     </Border>
@@ -829,7 +972,7 @@
                                 <DataTemplate DataType="{x:Type models:BOMItem}">
                                     <TextBox Text="{Binding Explanation, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              VerticalContentAlignment="Center"
-                                             FontSize="12"
+                                             FontSize="14"
                                              Padding="4,2"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellEditingTemplate>
@@ -842,6 +985,7 @@
                                     <Border Background="{Binding IsRemarkModified, Converter={StaticResource ModBg}}"
                                             Padding="6,2">
                                         <TextBlock Text="{Binding Remark}"
+                                                   FontSize="14"
                                                    VerticalAlignment="Center"
                                                    Foreground="{Binding IsRemarkModified, Converter={StaticResource ModFg}}"/>
                                     </Border>
@@ -851,7 +995,7 @@
                                 <DataTemplate DataType="{x:Type models:BOMItem}">
                                     <TextBox Text="{Binding Remark, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                              VerticalContentAlignment="Center"
-                                             FontSize="12"
+                                             FontSize="14"
                                              Padding="4,2"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellEditingTemplate>
@@ -861,60 +1005,9 @@
             </Border>
         </Grid>
 
-        <!-- 4. Bottom Action Panel -->
+        <!-- 4. Bottom Action Panel (Export & Reports) -->
         <Grid Grid.Row="3" Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Left: Batch Editing Tools -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="btnBatchDrawingNo"
-                        Content="📐 도면번호 일괄 지정"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Margin="0,0,6,0"
-                        Click="BtnBatchDrawingNo_Click"
-                        ToolTip="선택한 행의 도면번호(Drawing No.)를 일괄 입력/변경합니다."/>
-
-                <Button x:Name="btnBatchAssyCategory"
-                        Content="🏷️ Assy. 일괄 지정"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Margin="0,0,6,0"
-                        Click="BtnBatchAssyCategory_Click"
-                        ToolTip="선택한 행의 Assy. 종류(LID Assy, Elastomer Assy, BSS Assy, Device &amp; PCB, FRAME bolt)를 일괄 변경합니다."/>
-
-                <Button x:Name="btnBatchMaterial"
-                        Content="🏷️ 재질 일괄 지정"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Margin="0,0,6,0"
-                        Click="BtnBatchMaterial_Click"
-                        ToolTip="선택한 행의 재질(Material)을 일괄 변경합니다."/>
-
-                <Button x:Name="btnBatchRemark"
-                        Content="📝 비고 일괄 지정"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Margin="0,0,6,0"
-                        Click="BtnBatchRemark_Click"
-                        ToolTip="선택한 행의 비고(REMARK)를 일괄 변경합니다."/>
-
-                <Button x:Name="btnBatchRev"
-                        Content="🔄 Rev. 일괄 지정"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Margin="0,0,6,0"
-                        Click="BtnBatchRev_Click"
-                        ToolTip="선택한 행의 Revision(Rev.)을 일괄 변경합니다."/>
-                
-                <Button x:Name="btnBatchExplanation"
-                        Content="💬 설명충 일괄 지정"
-                        Style="{StaticResource AccentButtonStyle}"
-                        Click="BtnBatchExplanation_Click"
-                        ToolTip="선택한 행의 설명충(Explanation)을 일괄 변경합니다."/>
-            </StackPanel>
-
-            <!-- Right: Export & SolidWorks Save -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="btnExportExcel"
                         Content="📊 Excel 내보내기"
                         Style="{StaticResource SuccessButtonStyle}"

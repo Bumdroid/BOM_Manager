@@ -28,8 +28,13 @@ tests/obj/
 
 # Output / Temp directories
 tests/output/
+vault_config.json
 *.tmp
 *.temp
+/Autodesk*.dll
+Ref_temp/
+scratch/
+/BOM_Manager.exe
 
 # OS / Editor files
 .vscode/

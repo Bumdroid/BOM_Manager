@@ -933,6 +933,31 @@ namespace BOMManager.Tests
                 failed++;
             }
 
+            // Test 21: Vault Config Defaults (Server: 192.168.150.105, Vault: ISC_Vault, Password: "", AutoLogin: true) and Username Persistence
+            try
+            {
+                var config = VaultConfigManager.Load();
+                if (config.Server != "192.168.150.105") throw new Exception($"Expected Server '192.168.150.105', got '{config.Server}'");
+                if (config.VaultName != "ISC_Vault") throw new Exception($"Expected VaultName 'ISC_Vault', got '{config.VaultName}'");
+                if (config.Password != "") throw new Exception($"Expected Password '', got '{config.Password}'");
+
+                // Test saving and restoring username and AutoLogin
+                string testUser = "이두규";
+                VaultConfigManager.SaveLastUsername(testUser, true);
+
+                var reloaded = VaultConfigManager.Load();
+                if (reloaded.LastUsername != testUser) throw new Exception($"Expected LastUsername '{testUser}', got '{reloaded.LastUsername}'");
+                if (!reloaded.AutoLogin) throw new Exception("Expected AutoLogin to be true");
+
+                Console.WriteLine(" [PASS] Test 21: Autodesk Vault 고정 설정(Server, Vault, Pwd) 및 사용자(이두규)/자동로그인 영구 보존 로드 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 21: {ex.Message}");
+                failed++;
+            }
+
             Console.WriteLine($"\n=== 결과: {passed} 통과, {failed} 실패 ===");
             return failed == 0 ? 0 : 1;
         }
