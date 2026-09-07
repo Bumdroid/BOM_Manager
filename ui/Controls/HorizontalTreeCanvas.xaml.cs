@@ -560,6 +560,7 @@ namespace BOMManager.UI.Controls
                     partOptions.Add(("[ 선택 ]", ""));
                     partOptions.Add(("FRAME", "FRAME"));
                     partOptions.Add(("FRAME BUSH", "FRAME BUSH"));
+                    partOptions.Add(("BUSH BOLT", "BUSH BOLT"));
                     partOptions.Add(("BLOCK", "BLOCK"));
                 }
                 else if (parentAssyCat == "BOTTOM")

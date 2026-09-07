@@ -408,7 +408,7 @@ namespace BOMManager.Tests
                 if (!framePart.IsApplied || !pusherPart.IsApplied)
                     throw new Exception("Applied status should be true for categorized parts");
 
-                Console.WriteLine(" [PASS] Test 10: FRAME ASSY(FRAME, FRAME BUSH, BLOCK) 및 LID ASSY(Cover, Pusher...) 계층 분류 검증 성공");
+                Console.WriteLine(" [PASS] Test 10: FRAME ASSY(FRAME, FRAME BUSH, BUSH BOLT, BLOCK) 및 LID ASSY(Cover, Pusher...) 계층 분류 검증 성공");
                 passed++;
             }
             catch (Exception ex)
