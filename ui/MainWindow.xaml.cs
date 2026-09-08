@@ -1717,7 +1717,78 @@ namespace BOMManager.UI
                 list.Add(item);
             }
 
-            return list;
+            return SanitizeItemList(list);
+        }
+
+        private static List<BOMItem> SanitizeItemList(List<BOMItem> rawList)
+        {
+            if (rawList == null || rawList.Count == 0) return new List<BOMItem>();
+
+            var result = new List<BOMItem>();
+            var parentStack = new Stack<(BOMItem Item, int OriginalLevel, int NewLevel)>();
+
+            for (int i = 0; i < rawList.Count; i++)
+            {
+                var cur = rawList[i];
+                while (parentStack.Count > 0 && parentStack.Peek().OriginalLevel >= cur.Level)
+                {
+                    parentStack.Pop();
+                }
+
+                bool isDuplicateOfParent = false;
+                if (cur.IsSubassembly && parentStack.Count > 0)
+                {
+                    var parent = parentStack.Peek().Item;
+                    string cleanCur = SwConnector.CleanSingleName(cur.PartName);
+                    string cleanParent = SwConnector.CleanSingleName(parent.PartName);
+                    if (!string.IsNullOrEmpty(cleanCur) && string.Equals(cleanCur, cleanParent, StringComparison.OrdinalIgnoreCase))
+                    {
+                        isDuplicateOfParent = true;
+                    }
+                }
+
+                if (isDuplicateOfParent)
+                {
+                    // 중복 서브어셈블리 래퍼 건너뜀 및 하위 자식들의 레벨 1단계 축소 보정
+                    int duplicateLevel = cur.Level;
+                    int nextIdx = i + 1;
+                    while (nextIdx < rawList.Count && rawList[nextIdx].Level > duplicateLevel)
+                    {
+                        rawList[nextIdx].Level = Math.Max(parentStack.Peek().NewLevel + 1, rawList[nextIdx].Level - 1);
+                        nextIdx++;
+                    }
+                    continue;
+                }
+
+                int targetLevel = cur.Level;
+                if (parentStack.Count > 0)
+                {
+                    targetLevel = parentStack.Peek().NewLevel + 1;
+                }
+                else if (cur.Level > 0)
+                {
+                    targetLevel = cur.Level;
+                }
+                else
+                {
+                    targetLevel = 0;
+                }
+
+                cur.Level = targetLevel;
+                result.Add(cur);
+
+                if (cur.IsSubassembly)
+                {
+                    parentStack.Push((cur, cur.Level, targetLevel));
+                }
+            }
+
+            for (int i = 0; i < result.Count; i++)
+            {
+                result[i].ItemNo = i + 1;
+            }
+
+            return result;
         }
 
         private static Dictionary<string, string> ParseJsonBlock(string block)

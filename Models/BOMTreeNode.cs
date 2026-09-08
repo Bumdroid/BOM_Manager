@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using BOMManager.Core;
 
 namespace BOMManager.Models
 {
@@ -211,7 +212,12 @@ namespace BOMManager.Models
                 if (item.Level == 0) level0Count++;
             }
 
-            bool hasExplicitSingleRoot = level0Count == 1 && flatItems[0].Level == 0 && flatItems[0].IsSubassembly;
+            bool hasExplicitSingleRoot = level0Count == 1 &&
+                                         flatItems[0].Level == 0 &&
+                                         flatItems[0].IsSubassembly &&
+                                         !string.IsNullOrEmpty(rootAssemblyTitle) &&
+                                         (string.Equals(System.IO.Path.GetFileNameWithoutExtension(rootAssemblyTitle), System.IO.Path.GetFileNameWithoutExtension(flatItems[0].FileName ?? flatItems[0].PartName), StringComparison.OrdinalIgnoreCase) ||
+                                          string.Equals(SwConnector.CleanSingleName(rootAssemblyTitle), SwConnector.CleanSingleName(flatItems[0].PartName), StringComparison.OrdinalIgnoreCase));
 
             BOMTreeNode? masterRootNode = null;
             if (!hasExplicitSingleRoot)
@@ -249,6 +255,20 @@ namespace BOMManager.Models
                 if (stack.Count > 0)
                 {
                     var parent = stack.Peek();
+
+                    // 부모와 동일한 CleanPartName을 가진 중복 서브어셈블리 노드 자동 우회 (하위 부품이 직속 부모에 바로 연결되도록)
+                    string cleanThis = SwConnector.CleanSingleName(item.PartName);
+                    string cleanParent = parent.Item != null ? SwConnector.CleanSingleName(parent.Item.PartName) : "";
+                    bool isDuplicateSubWrapper = node.IsSubassembly &&
+                                                 !string.IsNullOrEmpty(cleanThis) &&
+                                                 string.Equals(cleanThis, cleanParent, StringComparison.OrdinalIgnoreCase);
+
+                    if (isDuplicateSubWrapper)
+                    {
+                        // 중복 서브어셈블리 노드는 트리 자식으로 추가하지 않고 건너뜀 (하위 부품은 상위 부모에 연결)
+                        continue;
+                    }
+
                     node.Parent = parent;
                     parent.Children.Add(node);
                 }

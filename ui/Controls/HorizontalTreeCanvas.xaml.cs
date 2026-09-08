@@ -930,7 +930,12 @@ namespace BOMManager.UI.Controls
                     {
                         partOptions.Add(("[ 선택 ]", ""));
                         partOptions.Add(("ELASTOMER", "ELASTOMER"));
+                        partOptions.Add(("FRAME", "FRAME"));
+                        partOptions.Add(("FRAME BUSH", "FRAME BUSH"));
                         partOptions.Add(("FRAME BOLT", "FRAME bolt"));
+                        partOptions.Add(("BUSH BOLT", "BUSH BOLT"));
+                        partOptions.Add(("BOTTOM COVER", "Bottom Cover"));
+                        partOptions.Add(("BLOCK", "BLOCK"));
                         partOptions.Add(("Etc.", "Etc."));
                     }
                     else if (parentAssyCat == "FRAME")

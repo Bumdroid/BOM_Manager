@@ -240,33 +240,60 @@ namespace BOMManager.Core
                             level = Math.Max(atCount, slashCount);
                         }
 
-                        // GetParent() 순회를 통한 부모 경로 수집
+                        // 가상/임시 컴포넌트 여부 확인 (\AppData\Local\Temp\, \VC~~\, ^ 등)
+                        bool isTempPath = normPath.Contains(@"\appdata\local\temp") ||
+                                         normPath.Contains(@"/appdata/local/temp") ||
+                                         normPath.Contains(@"\vc~~\") ||
+                                         normPath.Contains(@"/vc~~/") ||
+                                         normPath.Contains('^');
+
+                        // GetParent() 순회를 통한 부모 경로 및 이름 수집
                         var parentPaths = new List<string>();
                         var parentNames = new List<string>();
+                        string directParentCleanName = "";
+                        int pDepth = 0;
+                        int duplicateWrapperCount = 0;
+
                         try
                         {
                             var parentComp = comp.GetParent();
-                            int pDepth = 0;
                             while (parentComp != null)
                             {
-                                pDepth++;
                                 string pPath = parentComp.GetPathName();
+                                string pName = parentComp.Name2 ?? string.Empty;
+                                string pClean = ExtractLeafName(pName);
+
+                                if (string.IsNullOrEmpty(directParentCleanName) && !string.IsNullOrEmpty(pClean))
+                                {
+                                    directParentCleanName = pClean;
+                                }
+
                                 if (!string.IsNullOrEmpty(pPath))
                                 {
                                     parentPaths.Add(SafeNormalizePath(pPath));
                                 }
-                                string pName = parentComp.Name2 ?? string.Empty;
                                 if (!string.IsNullOrEmpty(pName))
                                 {
                                     parentNames.Add(pName.ToLowerInvariant().Trim());
                                 }
+
+                                // 부모 중에 동일한 CleanPartName을 가진 중복 래퍼가 있는지 체크
+                                if (isSub && !string.IsNullOrEmpty(cleanName) && string.Equals(pClean, cleanName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    duplicateWrapperCount++;
+                                }
+
+                                pDepth++;
                                 var nextParent = parentComp.GetParent();
                                 SafeReleaseCom(ref parentComp);
                                 parentComp = nextParent;
                             }
-                            level = Math.Max(level, pDepth);
                         }
                         catch { }
+
+                        // 유효 계층 깊이(level) 계산 (중복 서브어셈블리 래퍼 깊이 보정)
+                        int effectiveDepth = Math.Max(0, pDepth - duplicateWrapperCount);
+                        level = Math.Max(level, effectiveDepth);
 
                         // Isolate 초고속 처리를 위한 캐싱
                         _cachedCompRecords.Add(new CachedComponentRecord
@@ -280,6 +307,39 @@ namespace BOMManager.Core
                             ParentPaths = parentPaths,
                             ParentNames = parentNames
                         });
+
+                        // 중복 서브어셈블리 래퍼 판정:
+                        // 1. 직접 부모와 CleanName이 동일한 서브어셈블리
+                        // 2. 이미 실경로(Non-Temp) 서브어셈블리가 등록되어 있는데 Temp/VC~~ 경로로 동일 이름 서브어셈블리가 다시 탐색된 경우
+                        bool isDuplicateSubWrapper = false;
+                        if (isSub && !string.IsNullOrEmpty(cleanName))
+                        {
+                            if (!string.IsNullOrEmpty(directParentCleanName) && string.Equals(cleanName, directParentCleanName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                isDuplicateSubWrapper = true;
+                            }
+                            else if (isTempPath)
+                            {
+                                foreach (var exKey in orderedKeys)
+                                {
+                                    if (partMap.TryGetValue(exKey, out var exData) && exData.IsSubassembly)
+                                    {
+                                        string exClean = ExtractLeafName(exData.Component?.Name2 ?? exData.FilePath);
+                                        if (string.Equals(exClean, cleanName, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            isDuplicateSubWrapper = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (isDuplicateSubWrapper)
+                        {
+                            // 중복 서브어셈블리 래퍼는 별도 BOMItem으로 등록하지 않음 (하위 부품은 보정된 level로 부모에 직접 연결됨)
+                            continue;
+                        }
 
                         string configName = comp.ReferencedConfiguration ?? "Default";
                         var key = (normPath, configName.ToLowerInvariant());
@@ -303,6 +363,11 @@ namespace BOMManager.Core
                             if (level > partMap[key].Level)
                             {
                                 partMap[key].Level = level;
+                            }
+                            // 실 경로 우선 업데이트
+                            if (isTempPath && !string.IsNullOrEmpty(filePath) && !filePath.Contains(@"\AppData\Local\Temp") && !filePath.Contains(@"\VC~~\"))
+                            {
+                                partMap[key].FilePath = filePath;
                             }
                         }
                     }

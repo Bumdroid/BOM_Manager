@@ -265,8 +265,13 @@ namespace BOMManager.Models
                      string.Equals(parentNormalized, "Elastomer", StringComparison.OrdinalIgnoreCase))
             {
                 newCategories.Add("FRAME");
+                newCategories.Add("FRAME BUSH");
                 newCategories.Add("ELASTOMER");
                 newCategories.Add("FRAME BOLT");
+                newCategories.Add("BUSH BOLT");
+                newCategories.Add("BOTTOM COVER");
+                newCategories.Add("BLOCK");
+                newCategories.Add("FRAME ASSY");
                 newCategories.Add("BOTTOM COVER ASSY");
             }
             else if (string.Equals(parentNormalized, "BSS Assy", StringComparison.OrdinalIgnoreCase) ||

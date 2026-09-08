@@ -1123,6 +1123,79 @@ namespace BOMManager.Tests
                 failed++;
             }
 
+            // Test 26: Duplicate Virtual Subassembly Bypass & Direct Child Part Expansion under ELASTOMER ASSY
+            try
+            {
+                // Simulate flat items that contains a duplicate virtual subassembly container with the same clean name
+                var flatItems = new List<BOMItem>
+                {
+                    new BOMItem(1, "(R95-01516B9900000-0)Elastomer Assy Assy", isSubassembly: true, level: 0, assyCategory: "ELASTOMER ASSY")
+                    {
+                        FilePath = @"C:\Temp\Frame Assy\(R95-01516B9900000-0)Elastomer Assy Assy.SLDASM",
+                        IsExpanded = true,
+                        IsApproved = true
+                    },
+                    // Duplicate virtual container (e.g. from SolidWorks VC~~ temp directory)
+                    new BOMItem(2, "(R95-01516B9900000-0)Elastomer Assy Assy", isSubassembly: true, level: 1)
+                    {
+                        FilePath = @"C:\Users\User\AppData\Local\Temp\swx84468\VC~~\123\(R95-01516B9900000-0)Elastomer Assy Assy^(R95-01516B9900000-0)Elastomer Assy Assy.SLDASM"
+                    },
+                    // Constituent parts
+                    new BOMItem(3, "BM030-160-HS", isSubassembly: false, level: 2, assyCategory: "FRAME BOLT"),
+                    new BOMItem(4, "(R20-01516B9900000-0)Elastomer", isSubassembly: false, level: 2, assyCategory: "ELASTOMER"),
+                    new BOMItem(5, "(R91-01516B9900000-0)Frame", isSubassembly: false, level: 2, assyCategory: "FRAME")
+                };
+
+                var roots = BOMTreeNode.BuildForest(flatItems, "(R94-01516B9900000-0)Total Assy.SLDASM");
+                if (roots.Count != 1) throw new Exception($"Expected 1 master root, got {roots.Count}");
+
+                var masterRoot = roots[0];
+                if (masterRoot.Children.Count != 1) throw new Exception($"Master root should have 1 Sub1 node, got {masterRoot.Children.Count}");
+
+                var elastomerSub1 = masterRoot.Children[0];
+                if (elastomerSub1.NodeTypeBadge != "Sub1 Assy.") throw new Exception($"Expected 'Sub1 Assy.', got '{elastomerSub1.NodeTypeBadge}'");
+
+                // Verify that the duplicate subassembly item (Item 2) was bypassed and the 3 constituent parts are DIRECT children of Sub1
+                if (elastomerSub1.Children.Count != 3)
+                {
+                    throw new Exception($"Expected exactly 3 direct part children under Elastomer Sub1, but got {elastomerSub1.Children.Count} children!");
+                }
+
+                foreach (var child in elastomerSub1.Children)
+                {
+                    if (child.IsSubassembly)
+                    {
+                        throw new Exception($"Child node '{child.Item.PartName}' should NOT be a Subassembly, but has badge '{child.NodeTypeBadge}'!");
+                    }
+                    if (child.NodeTypeBadge != "PART")
+                    {
+                        throw new Exception($"Child node '{child.Item.PartName}' badge should be 'PART', got '{child.NodeTypeBadge}'");
+                    }
+                }
+
+                // Verify available categories under Elastomer include all socket parts
+                var testPart = new BOMItem(10, "TEST_PART");
+                testPart.UpdateAvailableAssyCategories("ELASTOMER ASSY");
+                if (!testPart.AvailableAssyCategories.Contains("FRAME") ||
+                    !testPart.AvailableAssyCategories.Contains("FRAME BUSH") ||
+                    !testPart.AvailableAssyCategories.Contains("ELASTOMER") ||
+                    !testPart.AvailableAssyCategories.Contains("FRAME BOLT") ||
+                    !testPart.AvailableAssyCategories.Contains("BUSH BOLT") ||
+                    !testPart.AvailableAssyCategories.Contains("BOTTOM COVER") ||
+                    !testPart.AvailableAssyCategories.Contains("BLOCK"))
+                {
+                    throw new Exception("ELASTOMER ASSY child part categories are incomplete.");
+                }
+
+                Console.WriteLine(" [PASS] Test 26: 가상 서브어셈블리 중복 래퍼(Sub2) 자동 우회 및 Elastomer Sub1 직속 파트(PART) 정상 전개 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 26: {ex.Message}");
+                failed++;
+            }
+
             Console.WriteLine($"\n=== 결과: {passed} 통과, {failed} 실패 ===");
             return failed == 0 ? 0 : 1;
         }
