@@ -958,6 +958,171 @@ namespace BOMManager.Tests
                 failed++;
             }
 
+            // Test 22: VaultUpdateService AppVersion Extraction Regex & Normalization
+            try
+            {
+                var v0 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.0.zip");
+                if (v0 == null || v0.Stage != ReleaseStage.Alpha || v0.NumericVersion != new Version(0, 0, 0, 0))
+                    throw new Exception($"Expected Alpha V0.0, got {v0}");
+
+                var v1 = VaultUpdateService.ExtractAppVersion("BOM_Manager_Alpha_V0.0.zip");
+                if (v1 == null || v1.Stage != ReleaseStage.Alpha || v1.NumericVersion != new Version(0, 0, 0, 0))
+                    throw new Exception($"Expected Alpha V0.0, got {v1}");
+
+                var v2 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Beta_V0.1.zip");
+                if (v2 == null || v2.Stage != ReleaseStage.Beta || v2.NumericVersion != new Version(0, 1, 0, 0))
+                    throw new Exception($"Expected Beta V0.1, got {v2}");
+
+                var v3 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_V1.0.zip");
+                if (v3 == null || v3.Stage != ReleaseStage.Release || v3.NumericVersion != new Version(1, 0, 0, 0))
+                    throw new Exception($"Expected V1.0, got {v3}");
+
+                var v4 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_v1.0.1.zip");
+                if (v4 == null || v4.Stage != ReleaseStage.Release || v4.NumericVersion != new Version(1, 0, 1, 0))
+                    throw new Exception($"Expected V1.0.1, got {v4}");
+
+                var vInvalid1 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal.zip");
+                if (vInvalid1 != null) throw new Exception("Expected null for Design_Automation_Portal.zip");
+
+                var vInvalid2 = VaultUpdateService.ExtractAppVersion("OtherApp_Alpha_V0.0.zip");
+                if (vInvalid2 != null) throw new Exception("Expected null for OtherApp_Alpha_V0.0.zip");
+
+                Console.WriteLine(" [PASS] Test 22: Vault 자동 업데이트 AppVersion 정규식 파싱(Design_Automation_Portal / BOM_Manager) 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 22: {ex.Message}");
+                failed++;
+            }
+
+            // Test 23: VaultUpdateService Alpha V?.? < Beta V?.? < V?.? Release Progression & Candidate Selection
+            try
+            {
+                var vAlpha00 = new AppVersion(ReleaseStage.Alpha, 0, 0);
+                var vAlpha01 = new AppVersion(ReleaseStage.Alpha, 0, 1);
+                var vBeta00 = new AppVersion(ReleaseStage.Beta, 0, 0);
+                var vBeta01 = new AppVersion(ReleaseStage.Beta, 0, 1);
+                var vRelease10 = new AppVersion(ReleaseStage.Release, 1, 0);
+                var vRelease11 = new AppVersion(ReleaseStage.Release, 1, 1);
+
+                if (!(vAlpha00 < vAlpha01)) throw new Exception("Alpha V0.0 must be less than Alpha V0.1");
+                if (!(vAlpha01 < vBeta00)) throw new Exception("Alpha V0.1 must be less than Beta V0.0");
+                if (!(vBeta00 < vBeta01)) throw new Exception("Beta V0.0 must be less than Beta V0.1");
+                if (!(vBeta01 < vRelease10)) throw new Exception("Beta V0.1 must be less than V1.0");
+                if (!(vRelease10 < vRelease11)) throw new Exception("V1.0 must be less than V1.1");
+
+                var fileList = new List<string>
+                {
+                    "Design_Automation_Portal_Alpha_V0.0.zip",
+                    "Design_Automation_Portal_Alpha_V0.1.zip",
+                    "Design_Automation_Portal_Beta_V0.0.zip",
+                    "Design_Automation_Portal_Beta_V0.2.zip",
+                    "Design_Automation_Portal_V1.0.zip",
+                    "random_readme.txt"
+                };
+
+                // Current version is Alpha V0.0 -> Should find V1.0 as highest
+                var candidate = VaultUpdateService.FindLatestUpdateCandidate(fileList, vAlpha00);
+                if (candidate == null) throw new Exception("Expected candidate from file list");
+                if (candidate.FileName != "Design_Automation_Portal_V1.0.zip") throw new Exception($"Expected Design_Automation_Portal_V1.0.zip, got {candidate.FileName}");
+
+                // Current version is Beta V0.1 -> Should find Beta V0.2 / V1.0
+                var candidate2 = VaultUpdateService.FindLatestUpdateCandidate(new[] { "Design_Automation_Portal_Beta_V0.0.zip", "Design_Automation_Portal_Beta_V0.2.zip" }, vBeta01);
+                if (candidate2?.FileName != "Design_Automation_Portal_Beta_V0.2.zip") throw new Exception($"Expected Beta V0.2, got {candidate2?.FileName}");
+
+                // Current version is V2.0 -> Should find nothing
+                var noCandidate = VaultUpdateService.FindLatestUpdateCandidate(fileList, new AppVersion(ReleaseStage.Release, 2, 0));
+                if (noCandidate != null) throw new Exception("Expected null when local version is higher");
+
+                Console.WriteLine(" [PASS] Test 23: 릴리즈 단계 우선순위(Alpha V?.? < Beta V?.? < V?.?) 및 최신 패키지 선출 알고리즘 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 23: {ex.Message}");
+                failed++;
+            }
+
+            // Test 24: VaultUpdateService Self-Update Batch Script Generation
+            try
+            {
+                string script = VaultUpdateService.GenerateUpdaterScript(12345, @"C:\Temp\extracted", @"C:\App", "Design_Automation_Portal.exe");
+                if (!script.Contains("PID eq 12345")) throw new Exception("Script does not contain PID check");
+                if (!script.Contains("xcopy")) throw new Exception("Script does not contain xcopy");
+                if (!script.Contains(@"start """" ""C:\App\Design_Automation_Portal.exe""")) throw new Exception("Script does not restart target exe");
+
+                Console.WriteLine(" [PASS] Test 24: 프로세스 종료 대기, 파일 교체 및 신규 버전 자동 재시작 스크립트 생성 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 24: {ex.Message}");
+                failed++;
+            }
+
+            // Test 25: Spring Designer Mechanical Formulas & Config Service
+            try
+            {
+                var sp = new BOMManager.Modules.SpringDesigner.Models.SpringDesignParameters
+                {
+                    WireDiameter = 1.1,
+                    OuterDiameter = 6.0,
+                    FreeLength = 8.6,
+                    P2h = 7.5,
+                    TotalCoils = 5.0,
+                    Material = BOMManager.Modules.SpringDesigner.Models.SpringMaterial.SUS,
+                    IsGrindingEnds = true,
+                    PKG = "1109",
+                    SPR_num = 28
+                };
+
+                // 1. 내경 (Di = Do - 2*d)
+                if (Math.Abs(sp.InnerDiameter - 3.8) > 1e-4) throw new Exception($"InnerDiameter calculation failed: expected 3.8, got {sp.InnerDiameter}");
+
+                // 2. 유효권수 (Na = Nf - 2.0)
+                if (Math.Abs(sp.ActiveCoils - 3.0) > 1e-4) throw new Exception($"ActiveCoils calculation failed: expected 3.0, got {sp.ActiveCoils}");
+
+                // 3. 중심경 (Dc = Do - d)
+                if (Math.Abs(sp.Dc - 4.9) > 1e-4) throw new Exception($"Dc calculation failed: expected 4.9, got {sp.Dc}");
+
+                // 4. 밀착고 (FullComp = (d * Nf) + d - (d / 2))
+                double expectedFullComp = (1.1 * 5.0) + 1.1 - 0.55;
+                if (Math.Abs(sp.FullComp - expectedFullComp) > 1e-4) throw new Exception($"FullComp calculation failed: expected {expectedFullComp}, got {sp.FullComp}");
+
+                // 5. 스프링 상수 K 및 P2 하중
+                if (sp.SpringConstantK <= 0) throw new Exception("SpringConstantK must be > 0");
+                if (sp.P2 <= 0) throw new Exception("P2 must be > 0");
+                if (sp.SAlo <= 0) throw new Exception("SAlo must be > 0");
+
+                // 6. Socket Total Force
+                if (sp.TF_min <= 0 || sp.TF_nor <= 0 || sp.TF_max <= 0) throw new Exception("Total force values must be > 0");
+
+                // 7. Dynamic Spring Icon generation
+                var icon = BOMManager.Modules.SpringDesigner.Services.SpringCadService.CreateSpringIconBitmap(24);
+                if (icon == null) throw new Exception("CreateSpringIconBitmap returned null");
+
+                // 8. JSON Helper roundtrip
+                string sampleJson = "{\r\n  \"VaultServer\": \"192.168.150.105\",\r\n  \"EF_min\": 20.5,\r\n  \"SPR_num\": 32,\r\n  \"Auto\": true\r\n}";
+                string sVal = BOMManager.Modules.SpringDesigner.Services.SpringConfigService.GetJsonString(sampleJson, "VaultServer");
+                double dVal = BOMManager.Modules.SpringDesigner.Services.SpringConfigService.GetJsonDouble(sampleJson, "EF_min");
+                int iVal = BOMManager.Modules.SpringDesigner.Services.SpringConfigService.GetJsonInt(sampleJson, "SPR_num");
+                bool bVal = BOMManager.Modules.SpringDesigner.Services.SpringConfigService.GetJsonBool(sampleJson, "Auto");
+
+                if (sVal != "192.168.150.105") throw new Exception($"GetJsonString failed: expected 192.168.150.105, got {sVal}");
+                if (Math.Abs(dVal - 20.5) > 1e-4) throw new Exception($"GetJsonDouble failed: expected 20.5, got {dVal}");
+                if (iVal != 32) throw new Exception($"GetJsonInt failed: expected 32, got {iVal}");
+                if (!bVal) throw new Exception("GetJsonBool failed: expected true");
+
+                Console.WriteLine(" [PASS] Test 25: 스프링 설계 역학 공식(선경/외경/밀착고/허용응력/Socket하중), 아이콘 생성 및 JSON 설정 파서 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 25: {ex.Message}");
+                failed++;
+            }
+
             Console.WriteLine($"\n=== 결과: {passed} 통과, {failed} 실패 ===");
             return failed == 0 ? 0 : 1;
         }

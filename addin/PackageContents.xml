@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage 
+    SchemaVersion="1.0"
+    AutodeskProduct="AutoCAD"
+    Name="Common_Draw_Spring" 
+    Description="스프링 설계 및 사내 표준도면 자동 생성 플러그인" 
+    AppVersion="1.0.0" 
+    ProductCode="{A484D8DE-9DD8-4A8D-A4AB-289070C8E20D}" 
+    UpgradeCode="{7F8A1234-5678-90AB-CDEF-1234567890AB}">
+
+  <CompanyDetails Name="KR 설계팀 / DT 운영관리팀" Email="" Url="" />
+
+  <!-- AutoCAD 2025 무조건 즉시 자동 로드 (명령어 및 리본 메뉴 100% 자동 생성) -->
+  <Components Description="AutoCAD 2025 Auto-Loader">
+    <RuntimeRequirements OS="Win64" Platform="AutoCAD*" SeriesMin="R20.0" SeriesMax="R26.0" />
+    
+    <ComponentEntry 
+        AppName="Common_Draw" 
+        ModuleName="./Contents/Common_Draw.dll" 
+        AppType="Managed" 
+        LoadOnAutoCADStartup="True" 
+        LoadOnCommandInvocation="True">
+      <Commands GroupName="CommonDrawCommands">
+        <Command Local="COMMON_DRAW" Global="COMMON_DRAW" />
+        <Command Local="COMMON_DRAW_UI" Global="COMMON_DRAW_UI" />
+        <Command Local="SHOW_RIBBON" Global="SHOW_RIBBON" />
+      </Commands>
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>

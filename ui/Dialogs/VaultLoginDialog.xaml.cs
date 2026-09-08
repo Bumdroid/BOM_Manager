@@ -28,6 +28,19 @@ namespace BOMManager.UI.Dialogs
         {
             try
             {
+                // 1. Taskbar & Titlebar Icon (DT Pepe Icon)
+                string? appIconPath = FindResourceFile("app_dt_icon.png") ?? FindResourceFile("app.ico") ?? FindResourceFile("logo.png");
+                if (appIconPath != null && File.Exists(appIconPath))
+                {
+                    var iconBmp = new BitmapImage();
+                    iconBmp.BeginInit();
+                    iconBmp.UriSource = new Uri(appIconPath, UriKind.Absolute);
+                    iconBmp.CacheOption = BitmapCacheOption.OnLoad;
+                    iconBmp.EndInit();
+                    Icon = iconBmp;
+                }
+
+                // 2. In-App Vault Logo
                 string? iconPath = FindResourceFile("Vault_Icon.png") ?? FindResourceFile("vault_icon.png");
                 if (iconPath != null && File.Exists(iconPath))
                 {
@@ -38,7 +51,6 @@ namespace BOMManager.UI.Dialogs
                     bmp.EndInit();
 
                     imgVaultIcon.Source = bmp;
-                    Icon = bmp;
                 }
             }
             catch { }

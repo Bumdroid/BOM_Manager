@@ -33,6 +33,8 @@ namespace BOMManager.UI
     {
         private readonly ISolidWorksService _swService;
         private readonly bool _mockMode;
+        private readonly Action? _onReturnToLauncher;
+        private bool _forceClose = false;
         private readonly List<BOMItem> _allItems = new();
         private readonly ObservableCollection<BOMItem> _displayedItems = new();
         private AssemblyInfo _currentAssyInfo = new();
@@ -40,12 +42,13 @@ namespace BOMManager.UI
         private string _filterText = string.Empty;
         private BomProcessStep _currentStep = BomProcessStep.Summary;
 
-        public MainWindow(ISolidWorksService swService, bool mockMode = false)
+        public MainWindow(ISolidWorksService swService, bool mockMode = false, Action? onReturnToLauncher = null)
         {
             InitializeComponent();
 
             _swService = swService ?? throw new ArgumentNullException(nameof(swService));
             _mockMode = mockMode;
+            _onReturnToLauncher = onReturnToLauncher;
 
             dgBom.ItemsSource = _displayedItems;
 
@@ -72,29 +75,29 @@ namespace BOMManager.UI
             // 창이 0.05초 만에 즉시 표시되도록 초기 로딩을 백그라운드로 지연 실행
             Loaded += MainWindow_Loaded;
 
-            Closed += (s, e) =>
+            Closing += MainWindow_Closing;
+        }
+
+        public void ForceClose()
+        {
+            _forceClose = true;
+            try
             {
-                try
-                {
-                    _autoTimer?.Stop();
-                }
-                catch { }
+                Close();
+            }
+            catch { }
+        }
 
-                try
-                {
-                    if (_swService is IDisposable disposable)
-                    {
-                        disposable.Dispose();
-                    }
-                }
-                catch { }
+        private void MainWindow_Closing(object? sender, CancelEventArgs e)
+        {
+            if (_forceClose) return;
 
-                try
-                {
-                    Application.Current?.Shutdown();
-                }
-                catch { }
-            };
+            if (_onReturnToLauncher != null)
+            {
+                e.Cancel = true;
+                Hide();
+                _onReturnToLauncher.Invoke();
+            }
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -135,7 +138,19 @@ namespace BOMManager.UI
         {
             try
             {
-                // 1. Pepe BOM Logo
+                // 1. Windows Taskbar & Titlebar Icon (DT Pepe Icon)
+                string? appIconPath = FindResourceFile("app_dt_icon.png") ?? FindResourceFile("app.ico") ?? FindResourceFile("logo.png");
+                if (appIconPath != null && File.Exists(appIconPath))
+                {
+                    var iconBmp = new BitmapImage();
+                    iconBmp.BeginInit();
+                    iconBmp.UriSource = new Uri(appIconPath, UriKind.Absolute);
+                    iconBmp.CacheOption = BitmapCacheOption.OnLoad;
+                    iconBmp.EndInit();
+                    Icon = iconBmp;
+                }
+
+                // 2. In-App Classic Pepe BOM Logo
                 string? logoPath = FindResourceFile("logo.png") ?? FindResourceFile("mainicon_32.png");
                 if (logoPath != null && File.Exists(logoPath))
                 {
@@ -146,36 +161,9 @@ namespace BOMManager.UI
                     bmp.EndInit();
 
                     imgLogo.Source = bmp;
-                    Icon = bmp;
                 }
 
-                // 2. Green CAD Pepe Icon for 제작도 V0.0 (Dummy)
-                string? dwgLogoPath = FindResourceFile("pepe_cad_icon_green.jpg") ?? FindResourceFile("pepe_cad_icon_cyan.jpg");
-                if (dwgLogoPath != null && File.Exists(dwgLogoPath))
-                {
-                    var dwgBmp = new BitmapImage();
-                    dwgBmp.BeginInit();
-                    dwgBmp.UriSource = new Uri(dwgLogoPath, UriKind.Absolute);
-                    dwgBmp.CacheOption = BitmapCacheOption.OnLoad;
-                    dwgBmp.EndInit();
-
-                    imgDwgLogo.Source = dwgBmp;
-                }
-
-                // 3. Duo-tone Transparent Spring Icon for 스프링설계 V1.0
-                string? springLogoPath = FindResourceFile("spring_icon.png") ?? FindResourceFile("spring_icon.jpg") ?? FindResourceFile("spring_logo.png");
-                if (springLogoPath != null && File.Exists(springLogoPath))
-                {
-                    var springBmp = new BitmapImage();
-                    springBmp.BeginInit();
-                    springBmp.UriSource = new Uri(springLogoPath, UriKind.Absolute);
-                    springBmp.CacheOption = BitmapCacheOption.OnLoad;
-                    springBmp.EndInit();
-
-                    imgSpringLogo.Source = springBmp;
-                }
-
-                // 4. Vault Icon for Header Badge
+                // 3. Vault Icon for Header Badge
                 string? vaultIconPath = FindResourceFile("Vault_Icon.png") ?? FindResourceFile("vault_icon.png");
                 if (vaultIconPath != null && File.Exists(vaultIconPath))
                 {
@@ -207,36 +195,6 @@ namespace BOMManager.UI
                 txtHeaderVaultUser.Text = user;
             }
             catch { }
-        }
-
-        private void BtnSettings_Click(object sender, RoutedEventArgs e)
-        {
-            if (btnSettings.ContextMenu != null)
-            {
-                btnSettings.ContextMenu.PlacementTarget = btnSettings;
-                btnSettings.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-                btnSettings.ContextMenu.IsOpen = true;
-            }
-        }
-
-        private void MenuItemChangeLogin_Click(object sender, RoutedEventArgs e)
-        {
-            var loginDialog = new VaultLoginDialog(_mockMode, isSwitchAccount: true, forceUncheckAutoLogin: true)
-            {
-                Owner = this
-            };
-            bool? result = loginDialog.ShowDialog();
-            if (result == true)
-            {
-                UpdateVaultUserDisplay();
-                txtStatusBar.Text = $"Vault 사용자가 '{VaultService.CurrentUsername}'(으)로 변경되었습니다.";
-                MessageBox.Show(
-                    this,
-                    $"Vault 계정이 '{VaultService.CurrentUsername}'(으)로 변경되었습니다.",
-                    "Vault 로그인 정보 변경 완료",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
         }
 
         private void CheckSwConnectionAndLoad(bool initial = false, bool silent = false)
@@ -541,43 +499,10 @@ namespace BOMManager.UI
 
         #region Event Handlers
 
-        private void BtnNavBomManager_Click(object sender, RoutedEventArgs e)
+        private void BtnGoHome_Click(object sender, RoutedEventArgs e)
         {
-            btnNavBomManager.Background = new SolidColorBrush(Color.FromRgb(0xEF, 0xF6, 0xFF));
-            btnNavBomManager.BorderBrush = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
-            btnNavBomManager.BorderThickness = new Thickness(2);
-
-            btnNavDrawingMaker.Background = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC));
-            btnNavDrawingMaker.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
-            btnNavDrawingMaker.BorderThickness = new Thickness(1);
-
-            SetProcessStep(_currentStep);
-        }
-
-        private void BtnNavDrawingMaker_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show(
-                "📐 [제작도 V0.0 (Dummy)] 모듈 안내:\n\n" +
-                "AutoCAD 도면 자동 생성 및 가공/제작도 일괄 출력 기능은 현재 준비 중입니다.\n" +
-                "추후 업데이트 시 해당 모듈에서 바로 도면 생성이 진행됩니다.",
-                "제작도 V0.0 (Dummy)",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-
-            txtStatusBar.Text = "제작도 V0.0 (Dummy) 모듈: AutoCAD 도면 자동화 준비 중";
-        }
-
-        private void BtnNavSpringDesigner_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show(
-                "🌀 [스프링설계 V1.0] 모듈 안내:\n\n" +
-                "스프링 치수 계산, 하중/응력 해석 및 3D 모델 자동 생성 엔진이 곧 연결됩니다.\n" +
-                "현재 연동 모듈을 준비 중입니다.",
-                "스프링설계 V1.0",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-
-            txtStatusBar.Text = "스프링설계 V1.0 모듈: 연동 엔진 연결 준비 중...";
+            Hide();
+            _onReturnToLauncher?.Invoke();
         }
 
 

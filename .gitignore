@@ -32,6 +32,10 @@ vault_config.json
 *.tmp
 *.temp
 /Autodesk*.dll
+/Adsk*.dll
+/adsk_*.dll
+/SolidWorks*.dll
+/Design_Automation_Portal.exe
 Ref_temp/
 scratch/
 /BOM_Manager.exe

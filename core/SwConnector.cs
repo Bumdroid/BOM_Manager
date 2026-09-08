@@ -13,7 +13,20 @@ namespace BOMManager.Core
     {
         private SldWorks? _swApp;
         private readonly List<CachedComponentRecord> _cachedCompRecords = new();
-        private static readonly string LogFile = @"c:\Temp\BOM_Manager\addin_debug.log";
+        private static string LogFile
+        {
+            get
+            {
+                try
+                {
+                    return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "addin_debug.log");
+                }
+                catch
+                {
+                    return Path.Combine(Path.GetTempPath(), "addin_debug.log");
+                }
+            }
+        }
 
         private static void Log(string message)
         {

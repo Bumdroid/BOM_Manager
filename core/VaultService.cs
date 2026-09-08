@@ -683,6 +683,12 @@ namespace BOMManager.Core
                     return false;
                 }
 
+                if (string.IsNullOrWhiteSpace(username))
+                {
+                    username = !string.IsNullOrWhiteSpace(CurrentUsername) ? CurrentUsername : "이두규";
+                }
+
+                // 1. Vault 로그인 시도: 업로드는 파일 쓰기(AddFile) 작업이므로 Standard 인증 사용
                 VDFVault.Results.LogInResult results = VDFVault.Library.ConnectionManager.LogIn(
                     server,
                     vault,
@@ -691,114 +697,128 @@ namespace BOMManager.Core
                     VDFVault.Currency.Connections.AuthenticationFlags.Standard,
                     null);
 
-                if (!results.Success)
+                if (!results.Success || results.Connection == null)
                 {
                     string detail = "";
                     try { if (results.Exception != null) detail = results.Exception.Message; } catch { }
-                    errorMessage = $"Vault 업로드 로그인 실패. {detail}".Trim();
+                    errorMessage = $"Vault 업로드 로그인 실패 (User: {username}). {detail}".Trim();
                     return false;
                 }
 
                 VDFVault.Currency.Connections.Connection connection = results.Connection;
-                string targetFolderPath = "$/05_KR 설계팀 자료/04_DT 운영관리팀/99_자동화/50_VoC";
-
-                Autodesk.Connectivity.WebServices.Folder? folder = null;
                 try
                 {
-                    folder = connection.WebServiceManager.DocumentService.GetFolderByPath(targetFolderPath);
-                }
-                catch
-                {
-                    string fallbackFolder = "$/05_KR 설계팀 자료/04_DT 운영관리팀/99_자동화";
+                    string targetFolderPath = "$/05_KR 설계팀 자료/04_DT 운영관리팀/99_자동화/50_VoC";
+
+                    Autodesk.Connectivity.WebServices.Folder? folder = null;
                     try
                     {
-                        folder = connection.WebServiceManager.DocumentService.GetFolderByPath(fallbackFolder);
+                        folder = connection.WebServiceManager.DocumentService.GetFolderByPath(targetFolderPath);
+                    }
+                    catch
+                    {
+                        string fallbackFolder = "$/05_KR 설계팀 자료/04_DT 운영관리팀/99_자동화";
+                        try
+                        {
+                            folder = connection.WebServiceManager.DocumentService.GetFolderByPath(fallbackFolder);
+                        }
+                        catch { }
+                    }
+
+                    if (folder == null)
+                    {
+                        errorMessage = $"Vault 지정 폴더 경로({targetFolderPath})를 찾을 수 없습니다.";
+                        return false;
+                    }
+
+                    // 1. Vault 폴더 내 중복 파일명 체크 및 (1), (2) 번호 부여
+                    Autodesk.Connectivity.WebServices.File[]? existingFiles = null;
+                    try
+                    {
+                        existingFiles = connection.WebServiceManager.DocumentService.GetLatestFilesByFolderId(folder.Id, true);
                     }
                     catch { }
-                }
 
-                if (folder == null)
-                {
-                    errorMessage = $"Vault 지정 폴더 경로({targetFolderPath})를 찾을 수 없습니다.";
-                    return false;
-                }
+                    string baseName = Path.GetFileNameWithoutExtension(fileName);
+                    string ext = Path.GetExtension(fileName);
+                    if (string.IsNullOrEmpty(ext)) ext = ".txt";
 
-                // 1. Vault 폴더 내 중복 파일명 체크 및 (1), (2) 번호 부여
-                Autodesk.Connectivity.WebServices.File[]? existingFiles = null;
-                try
-                {
-                    existingFiles = connection.WebServiceManager.DocumentService.GetLatestFilesByFolderId(folder.Id, true);
-                }
-                catch { }
-
-                string baseName = Path.GetFileNameWithoutExtension(fileName);
-                string ext = Path.GetExtension(fileName);
-                if (string.IsNullOrEmpty(ext)) ext = ".txt";
-
-                var existingNames = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (existingFiles != null)
-                {
-                    foreach (var f in existingFiles)
+                    var existingNames = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (existingFiles != null)
                     {
-                        if (f != null && !string.IsNullOrEmpty(f.Name))
+                        foreach (var f in existingFiles)
                         {
-                            existingNames.Add(f.Name);
+                            if (f != null && !string.IsNullOrEmpty(f.Name))
+                            {
+                                existingNames.Add(f.Name);
+                            }
                         }
                     }
-                }
 
-                string targetVaultFileName = fileName;
-                int counter = 1;
-                while (existingNames.Contains(targetVaultFileName))
-                {
-                    targetVaultFileName = $"{baseName}({counter}){ext}";
-                    counter++;
-                }
-
-                var folderEntity = new VDFVault.Currency.Entities.Folder(connection, folder);
-
-                // 2. Vault VDF Stream AddFile 메모리 직접 업로드 (로컬 파일 및 작업 폴더 사용 안 함)
-                bool uploadSuccess = false;
-                int retryCount = 0;
-                while (!uploadSuccess && retryCount < 10)
-                {
-                    try
+                    string targetVaultFileName = fileName;
+                    int counter = 1;
+                    while (existingNames.Contains(targetVaultFileName))
                     {
-                        using (MemoryStream ms = new MemoryStream(fileBytes))
-                        {
-                            VDFVault.Currency.Entities.FileIteration fileIter = connection.FileManager.AddFile(
-                                folderEntity,
-                                targetVaultFileName,
-                                "Automated Feedback / Bug Report Upload",
-                                DateTime.Now,
-                                null,
-                                null,
-                                Autodesk.Connectivity.WebServices.FileClassification.None,
-                                false,
-                                ms);
-
-                            uploadedVaultFileName = fileIter != null && !string.IsNullOrEmpty(fileIter.EntityName)
-                                ? fileIter.EntityName
-                                : targetVaultFileName;
-                        }
-
-                        uploadSuccess = true;
-                    }
-                    catch (Exception ex)
-                    {
-                        retryCount++;
-                        if (retryCount >= 10)
-                        {
-                            errorMessage = ex.Message;
-                            return false;
-                        }
-
                         targetVaultFileName = $"{baseName}({counter}){ext}";
                         counter++;
                     }
-                }
 
-                return true;
+                    var folderEntity = new VDFVault.Currency.Entities.Folder(connection, folder);
+
+                    // 2. Vault VDF Stream AddFile 메모리 직접 업로드 (로컬 파일 및 작업 폴더 사용 안 함)
+                    bool uploadSuccess = false;
+                    int retryCount = 0;
+                    while (!uploadSuccess && retryCount < 10)
+                    {
+                        try
+                        {
+                            using (MemoryStream ms = new MemoryStream(fileBytes))
+                            {
+                                VDFVault.Currency.Entities.FileIteration fileIter = connection.FileManager.AddFile(
+                                    folderEntity,
+                                    targetVaultFileName,
+                                    "Automated Feedback / Bug Report Upload",
+                                    DateTime.Now,
+                                    null,
+                                    null,
+                                    Autodesk.Connectivity.WebServices.FileClassification.None,
+                                    false,
+                                    ms);
+
+                                uploadedVaultFileName = fileIter != null && !string.IsNullOrEmpty(fileIter.EntityName)
+                                    ? fileIter.EntityName
+                                    : targetVaultFileName;
+                            }
+
+                            uploadSuccess = true;
+                        }
+                        catch (Exception ex)
+                        {
+                            retryCount++;
+                            if (retryCount >= 10)
+                            {
+                                errorMessage = ex.Message;
+                                return false;
+                            }
+
+                            targetVaultFileName = $"{baseName}({counter}){ext}";
+                            counter++;
+                        }
+                    }
+
+                    return true;
+                }
+                finally
+                {
+                    try
+                    {
+                        if (connection != null)
+                        {
+                            VDFVault.Library.ConnectionManager.LogOut(connection);
+                        }
+                    }
+                    catch { }
+                }
             }
             catch (Exception ex)
             {

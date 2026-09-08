@@ -259,184 +259,84 @@
                 Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/> <!-- 0: Navigation Buttons -->
-                    <ColumnDefinition Width="*"/>    <!-- 1: Spacer -->
+                    <ColumnDefinition Width="Auto"/> <!-- 0: Home Button & App Title -->
+                    <ColumnDefinition Width="*"/>    <!-- 1: Document & Connection Status Badge -->
                     <ColumnDefinition Width="Auto"/> <!-- 2: Vault User Status Badge -->
-                    <ColumnDefinition Width="Auto"/> <!-- 3: Settings Combo Button (Concept 3) -->
                 </Grid.ColumnDefinitions>
 
-                <!-- Top Module Navigation Columns: BOM Manager (+ Status below) & 제작도 Dummy (+ dwg Status below) -->
+                <!-- Left: Home Button + BOM Manager Title with Pepe Logo -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- 1. BOM Manager V0.0 (Button + Status Badge Underneath) -->
-                    <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
-                        <!-- BOM Manager V0.0 Button with Pepe Logo (20% Larger) -->
-                        <Button x:Name="btnNavBomManager"
-                                Height="52"
-                                Padding="14,2"
-                                Background="#EFF6FF"
-                                BorderBrush="#2563EB"
-                                BorderThickness="2"
-                                Cursor="Hand"
-                                Click="BtnNavBomManager_Click">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="7"/>
-                                </Style>
-                            </Button.Resources>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Image x:Name="imgLogo" Width="34" Height="34" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="BOM Manager V0.0" FontSize="16" FontWeight="Bold" Foreground="#1E40AF"/>
-                                    <TextBlock Text="With SolidWorks 2021" FontSize="10" FontWeight="Regular" Foreground="#3B82F6"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
+                    <!-- Home / Launcher Navigation Button -->
+                    <Button x:Name="btnGoHome"
+                            Height="44"
+                            Padding="12,0"
+                            Background="#EFF6FF"
+                            BorderBrush="#93C5FD"
+                            BorderThickness="1.5"
+                            Cursor="Hand"
+                            ToolTip="홈 화면(앱 런처)으로 이동"
+                            Click="BtnGoHome_Click"
+                            Margin="0,0,12,0">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="8"/>
+                            </Style>
+                        </Button.Resources>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="🏠" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="홈 화면" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
 
-                        <!-- SolidWorks / sldasm Status Badge (Underneath BOM Manager) -->
-                        <Border x:Name="borderStatusBadge"
-                                CornerRadius="10"
-                                Background="#ECFDF5"
-                                BorderBrush="#A7F3D0"
-                                BorderThickness="1"
-                                Padding="8,3"
-                                Margin="0,4,0,0"
-                                HorizontalAlignment="Stretch">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Ellipse x:Name="dotStatus"
-                                         Width="10" Height="10"
-                                         Fill="#10B981"
-                                         Stroke="#059669"
-                                         StrokeThickness="1.5"
-                                         Margin="0,0,6,0"
-                                         VerticalAlignment="Center"/>
-                                <TextBlock x:Name="txtStatusBadge"
-                                           Text="연결 확인 중..."
-                                           FontSize="12"
-                                           FontWeight="Regular"
-                                           Foreground="#065F46"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                    <Border Width="1" Height="32" Background="#CBD5E1" Margin="0,0,14,0"/>
 
-                    <!-- 2. 제작도 V0.0 (Dummy) (Button + ~~~.dwg Status Badge Underneath) -->
-                    <StackPanel Margin="0,0,10,0" VerticalAlignment="Center">
-                        <!-- 제작도 V0.0 (Dummy) Button (20% Larger with Green CAD Pepe) -->
-                        <Button x:Name="btnNavDrawingMaker"
-                                Height="52"
-                                Padding="14,2"
-                                Background="#F8FAFC"
-                                BorderBrush="#CBD5E1"
-                                BorderThickness="1"
-                                Cursor="Hand"
-                                Click="BtnNavDrawingMaker_Click">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="7"/>
-                                </Style>
-                            </Button.Resources>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border CornerRadius="4" ClipToBounds="True" Margin="0,0,10,0" Width="34" Height="34" Background="#1E293B">
-                                    <Image x:Name="imgDwgLogo" Width="34" Height="34" RenderOptions.BitmapScalingMode="HighQuality"/>
-                                </Border>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="제작도 V0.0 (Dummy)" FontSize="16" FontWeight="SemiBold" Foreground="#475569"/>
-                                    <TextBlock Text="With ACAD 2025" FontSize="10" FontWeight="Regular" Foreground="#94A3B8"/>
-                                </StackPanel>
+                    <!-- BOM Manager V0.0 Brand Indicator -->
+                    <Border Height="44"
+                            Padding="12,4"
+                            Background="#FFFFFF"
+                            BorderBrush="#E2E8F0"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image x:Name="imgLogo" Width="30" Height="30" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="BOM Manager V0.0" FontSize="15" FontWeight="Bold" Foreground="#1E40AF"/>
+                                <TextBlock Text="With SolidWorks 2021" FontSize="10" FontWeight="Regular" Foreground="#3B82F6"/>
                             </StackPanel>
-                        </Button>
-
-                        <!-- AutoCAD / dwg Status Badge (Underneath 제작도 V0.0) -->
-                        <Border x:Name="borderDwgStatusBadge"
-                                CornerRadius="10"
-                                Background="#F1F5F9"
-                                BorderBrush="#CBD5E1"
-                                BorderThickness="1"
-                                Padding="8,3"
-                                Margin="0,4,0,0"
-                                HorizontalAlignment="Stretch">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Ellipse Width="10" Height="10"
-                                         Fill="#94A3B8"
-                                         Stroke="#64748B"
-                                         StrokeThickness="1.5"
-                                         Margin="0,0,6,0"
-                                         VerticalAlignment="Center"/>
-                                <TextBlock x:Name="txtDwgStatusBadge"
-                                           Text="~~~.dwg (Dummy)"
-                                           FontSize="12"
-                                           FontWeight="Regular"
-                                           Foreground="#64748B"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-
-                    <!-- 3. 스프링설계 V1.0 (Button + 연결중... Status Badge Underneath) -->
-                    <StackPanel Margin="0,0,14,0" VerticalAlignment="Center">
-                        <!-- 스프링설계 V1.0 Button -->
-                        <Button x:Name="btnNavSpringDesigner"
-                                Height="52"
-                                Padding="14,2"
-                                Background="#F8FAFC"
-                                BorderBrush="#CBD5E1"
-                                BorderThickness="1"
-                                Cursor="Hand"
-                                Click="BtnNavSpringDesigner_Click">
-                            <Button.Resources>
-                                <Style TargetType="Border">
-                                    <Setter Property="CornerRadius" Value="7"/>
-                                </Style>
-                            </Button.Resources>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border CornerRadius="4" ClipToBounds="True" Margin="0,0,10,0" Width="34" Height="34" Background="Transparent">
-                                    <Image x:Name="imgSpringLogo" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality"/>
-                                </Border>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="스프링설계 V1.0" FontSize="16" FontWeight="SemiBold" Foreground="#475569"/>
-                                    <TextBlock FontSize="10" FontWeight="Regular" Foreground="#94A3B8" LineHeight="12">
-                                        <Run Text="With ACAD 2025"/>
-                                        <LineBreak/>
-                                        <Run Text="SolidWorks 2021" TextDecorations="Strikethrough"/>
-                                    </TextBlock>
-                                </StackPanel>
-                            </StackPanel>
-                        </Button>
-
-                        <!-- 스프링 연결 상태 Badge (Underneath 스프링설계 V1.0) -->
-                        <Border x:Name="borderSpringStatusBadge"
-                                CornerRadius="10"
-                                Background="#EFF6FF"
-                                BorderBrush="#BFDBFE"
-                                BorderThickness="1"
-                                Padding="8,3"
-                                Margin="0,4,0,0"
-                                HorizontalAlignment="Stretch">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Ellipse Width="10" Height="10"
-                                         Fill="#3B82F6"
-                                         Stroke="#2563EB"
-                                         StrokeThickness="1.5"
-                                         Margin="0,0,6,0"
-                                         VerticalAlignment="Center"/>
-                                <TextBlock x:Name="txtSpringStatusBadge"
-                                           Text="연결중..."
-                                           FontSize="12"
-                                           FontWeight="Regular"
-                                           Foreground="#1D4ED8"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
-                <!-- User Account Status -->
+                <!-- Center/Right: SolidWorks Active Assembly Connection Status Badge -->
+                <Border Grid.Column="1"
+                        x:Name="borderStatusBadge"
+                        CornerRadius="8"
+                        Background="#ECFDF5"
+                        BorderBrush="#A7F3D0"
+                        BorderThickness="1"
+                        Padding="14,6"
+                        Margin="14,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="dotStatus"
+                                 Width="10" Height="10"
+                                 Fill="#10B981"
+                                 Stroke="#059669"
+                                 StrokeThickness="1.5"
+                                 Margin="0,0,8,0"
+                                 VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtStatusBadge"
+                                   Text="연결 확인 중..."
+                                   FontSize="13"
+                                   FontWeight="Medium"
+                                   Foreground="#065F46"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Right: User Account Status -->
                 <Border Grid.Column="2"
                         Background="#F0FDF4"
                         BorderBrush="#BBF7D0"
@@ -444,84 +344,13 @@
                         CornerRadius="7"
                         Height="38"
                         Padding="12,0"
-                        Margin="0,0,10,0"
                         VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Image x:Name="imgHeaderVaultIcon" Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="사용자: " FontSize="16" FontWeight="Regular" Foreground="#15803D" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="txtHeaderVaultUser" Text="이두규" FontSize="16" FontWeight="Regular" Foreground="#166534" VerticalAlignment="Center"/>
+                        <Image x:Name="imgHeaderVaultIcon" Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="사용자: " FontSize="14" FontWeight="Regular" Foreground="#15803D" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtHeaderVaultUser" Text="이두규" FontSize="14" FontWeight="Bold" Foreground="#166534" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
-
-                <!-- Concept 3: Precision Split Combo Button ([ ⚙️ 설정 | ∨ ]) -->
-                <Button x:Name="btnSettings"
-                        Grid.Column="3"
-                        Style="{StaticResource Concept3SplitButtonStyle}"
-                        Height="38"
-                        ToolTip="환경설정 및 로그인 정보 변경"
-                        Click="BtnSettings_Click">
-                    <Grid Height="38">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="28"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Left Part: Clean CAD Precision Outline Gear Icon + '설정' Text -->
-                        <Border Grid.Column="0"
-                                Padding="12,0,10,0"
-                                Background="Transparent"
-                                BorderBrush="#CBD5E1"
-                                BorderThickness="0,0,1.5,0"
-                                Margin="0,6,0,6">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- Precision Outline Gear Vector Path -->
-                                <Path Data="M 12 1.5 C 11.2 1.5 10.9 2.1 10.8 2.8 L 10.4 4.5 C 9.4 4.9 8.5 5.5 7.7 6.3 L 6.1 5.4 C 5.4 5 4.6 5.3 4.2 6 L 2.7 8.6 C 2.3 9.3 2.5 10.2 3.2 10.7 L 4.6 11.7 C 4.5 12.3 4.5 12.9 4.5 13.5 C 4.5 14.1 4.5 14.7 4.6 15.3 L 3.2 16.3 C 2.5 16.8 2.3 17.7 2.7 18.4 L 4.2 21 C 4.6 21.7 5.4 22 6.1 21.6 L 7.7 20.7 C 8.5 21.5 9.4 22.1 10.4 22.5 L 10.8 24.2 C 10.9 24.9 11.2 25.5 12 25.5 L 15 25.5 C 15.8 25.5 16.1 24.9 16.2 24.2 L 16.6 22.5 C 17.6 22.1 18.5 21.5 19.3 20.7 L 20.9 21.6 C 21.6 22 22.4 21.7 22.8 21 L 24.3 18.4 C 24.7 17.7 24.5 16.8 23.8 16.3 L 22.4 15.3 C 22.5 14.7 22.5 14.1 22.5 13.5 C 22.5 12.9 22.5 12.3 22.4 11.7 L 23.8 10.7 C 24.5 10.2 24.7 9.3 24.3 8.6 L 22.8 6 C 22.4 5.3 21.6 5 20.9 5.4 L 19.3 6.3 C 18.5 5.5 17.6 4.9 16.6 4.5 L 16.2 2.8 C 16.1 2.1 15.8 1.5 15 1.5 Z M 13.5 9 C 16 9 18 11 18 13.5 C 18 16 16 18 13.5 18 C 11 18 9 16 9 13.5 C 9 11 11 9 13.5 9 Z"
-                                      Stroke="#243342"
-                                      StrokeThickness="2.0"
-                                      StrokeLineJoin="Round"
-                                      StrokeStartLineCap="Round"
-                                      StrokeEndLineCap="Round"
-                                      Fill="Transparent"
-                                      Width="18" Height="18"
-                                      Margin="0,0,8,0"
-                                      Stretch="Uniform"
-                                      VerticalAlignment="Center"/>
-                                <TextBlock Text="설정"
-                                           FontSize="16"
-                                           FontWeight="Regular"
-                                           Foreground="#243342"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Right Part: Dropdown Chevron Box -->
-                        <Border Grid.Column="1"
-                                Background="Transparent"
-                                HorizontalAlignment="Stretch"
-                                VerticalAlignment="Stretch">
-                            <Path Data="M 0 0 L 4.5 4.5 L 9 0"
-                                  Stroke="#243342"
-                                  StrokeThickness="2.0"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
-                                  StrokeLineJoin="Round"
-                                  Width="9" Height="5"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
-                        </Border>
-                    </Grid>
-
-                    <Button.ContextMenu>
-                        <ContextMenu x:Name="ctxSettingsMenu">
-                            <MenuItem x:Name="menuItemChangeLogin"
-                                      Header="🔑 로그인 정보 변경"
-                                      FontSize="16"
-                                      FontWeight="Regular"
-                                      Padding="14,8"
-                                      Click="MenuItemChangeLogin_Click"/>
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
             </Grid>
         </Border>
 

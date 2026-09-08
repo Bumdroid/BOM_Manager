@@ -11,15 +11,24 @@
 
   <ItemGroup>
     <Compile Include="..\Models\*.cs" Link="Models\%(Filename)%(Extension)" />
+    <Compile Include="..\Modules\SpringDesigner\Models\*.cs" Link="Modules\SpringDesigner\Models\%(Filename)%(Extension)" />
+    <Compile Include="..\Modules\SpringDesigner\Services\*.cs" Link="Modules\SpringDesigner\Services\%(Filename)%(Extension)" />
     <Compile Include="..\core\ISolidWorksService.cs" Link="Core\ISolidWorksService.cs" />
     <Compile Include="..\core\SwConnector.cs" Link="Core\SwConnector.cs" />
     <Compile Include="..\core\MockSwConnector.cs" Link="Core\MockSwConnector.cs" />
+    <Compile Include="..\core\VaultService.cs" Link="Core\VaultService.cs" />
     <Compile Include="..\core\VaultConfigManager.cs" Link="Core\VaultConfigManager.cs" />
+    <Compile Include="..\core\VaultUpdateService.cs" Link="Core\VaultUpdateService.cs" />
+    <Compile Include="..\core\OleMessageFilter.cs" Link="Core\OleMessageFilter.cs" />
     <Compile Include="..\utils\BomExporter.cs" Link="Utils\BomExporter.cs" />
     <Compile Include="TestRunner.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="SolidWorks.Interop.sldworks">
       <HintPath>..\lib\SolidWorks.Interop.sldworks.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
@@ -31,6 +40,22 @@
     <Reference Include="SolidWorks.Interop.swpublished">
       <HintPath>..\lib\SolidWorks.Interop.swpublished.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="Autodesk.DataManagement.Client.Framework">
+      <HintPath>..\lib\Autodesk.DataManagement.Client.Framework.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Autodesk.DataManagement.Client.Framework.Vault">
+      <HintPath>..\lib\Autodesk.DataManagement.Client.Framework.Vault.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Autodesk.Connectivity.WebServices">
+      <HintPath>..\lib\Autodesk.Connectivity.WebServices.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Autodesk.Connectivity.WebServices.WCF">
+      <HintPath>..\lib\Autodesk.Connectivity.WebServices.WCF.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />

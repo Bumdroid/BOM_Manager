@@ -17,7 +17,20 @@ namespace BOMManager
     {
         private static Mutex? _singleInstanceMutex;
         private const string MutexName = "Global\\BOM_Manager_SingleInstance_Mutex_94B838E1";
-        private static readonly string LogFile = @"c:\Temp\BOM_Manager\addin_debug.log";
+        private static string LogFile
+        {
+            get
+            {
+                try
+                {
+                    return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "addin_debug.log");
+                }
+                catch
+                {
+                    return Path.Combine(Path.GetTempPath(), "addin_debug.log");
+                }
+            }
+        }
         private ISolidWorksService? _activeService;
 
         [DllImport("user32.dll")]
@@ -151,6 +164,33 @@ namespace BOMManager
 
                 Log($"Vault 로그인 완료 (User: {VaultService.CurrentUsername})");
 
+                // Vault 자동 업데이트 확인 (실제 연동 모드에서 팝업으로 최신 버전 검색 및 자동 적용)
+                if (!isMock)
+                {
+                    try
+                    {
+                        var config = VaultConfigManager.Load();
+                        Log("Vault 최신 배포 버전 확인 팝업 표시...");
+                        var updateDlg = new BOMManager.UI.Dialogs.UpdateProgressDialog(
+                            VaultService.CurrentServer,
+                            VaultService.CurrentVault,
+                            VaultService.CurrentUsername,
+                            config.Password);
+
+                        bool? updateResult = updateDlg.ShowDialog();
+                        if (updateResult == true && updateDlg.UpdateInitiated)
+                        {
+                            Log("자가 업데이트 프로세스가 실행되었으므로 현재 인스턴스를 종료합니다.");
+                            Shutdown();
+                            return;
+                        }
+                    }
+                    catch (Exception updateEx)
+                    {
+                        Log($"업데이트 확인 예외 (무시하고 계속 진행): {updateEx.Message}");
+                    }
+                }
+
                 if (isMock)
                 {
                     Log("가상 목업 모드(MockSwConnector)로 실행");
@@ -162,13 +202,13 @@ namespace BOMManager
                     _activeService = new SwConnector();
                 }
 
-                var mainWindow = new MainWindow(_activeService, isMock);
-                MainWindow = mainWindow;
+                var launcherWindow = new LauncherWindow(_activeService, isMock);
+                MainWindow = launcherWindow;
                 ShutdownMode = ShutdownMode.OnMainWindowClose;
-                mainWindow.Show();
-                mainWindow.Activate();
-                mainWindow.Focus();
-                Log("MainWindow 표시 완료");
+                launcherWindow.Show();
+                launcherWindow.Activate();
+                launcherWindow.Focus();
+                Log("LauncherWindow 표시 완료");
             }
             catch (Exception ex)
             {

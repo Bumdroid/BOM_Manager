@@ -1,0 +1,18 @@
+<Window x:Class="BOMManager.Modules.SpringDesigner.Views.SpringDesignerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:BOMManager.Modules.SpringDesigner.Views"
+        mc:Ignorable="d"
+        Title="스프링 설계 자동화 V0.2" 
+        Width="495" Height="900"
+        MinWidth="470" MinHeight="580"
+        WindowStartupLocation="CenterScreen"
+        Background="#FFFFFF"
+        FontFamily="pack://application:,,,/resources/Fonts/#Pretendard, ./resources/Fonts/#Pretendard, Pretendard, Malgun Gothic, Segoe UI, sans-serif">
+
+    <Grid Background="#FFFFFF">
+        <views:SpringDesignControl x:Name="DesignControl" />
+    </Grid>
+</Window>

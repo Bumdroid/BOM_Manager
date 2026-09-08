@@ -1,0 +1,722 @@
+<UserControl x:Class="BOMManager.Modules.SpringDesigner.Views.SpringDesignControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:vm="clr-namespace:BOMManager.Modules.SpringDesigner.ViewModels"
+             mc:Ignorable="d" 
+             d:DesignHeight="875" d:DesignWidth="465"
+             FontFamily="{StaticResource AppFontFamily}">
+
+    <UserControl.DataContext>
+        <vm:SpringDesignerViewModel />
+    </UserControl.DataContext>
+
+    <UserControl.Resources>
+        <!-- 기본 텍스트 블록 폰트 스타일 -->
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto"/>
+        </Style>
+
+        <!-- 소수점 자유 입력을 위한 텍스트 박스 스타일 -->
+        <Style TargetType="TextBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#111111"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- 블랙 엔 화이트 ComboBox 스타일 (가운데 정렬) -->
+        <Style TargetType="ComboBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#111111"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- ComboBoxItem 드롭다운 가독성 및 가운데 정렬 스타일 -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="#111111"/>
+            <Setter Property="Padding" Value="6,5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F0F0F0"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#111111"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- TabItem 커스텀 ControlTemplate (마우스 호버 색상 변화 제거, 선택: 검은색 배경/선명한 흰색 글씨, 미선택: 흐린 회색) -->
+        <Style TargetType="TabItem">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" 
+                                Background="#E2E5EC" 
+                                BorderBrush="#CCCCCC" 
+                                BorderThickness="1,1,1,0" 
+                                CornerRadius="4,4,0,0" 
+                                Margin="2,0" 
+                                Padding="18,10">
+                            <ContentPresenter x:Name="ContentSite"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Center"
+                                              ContentSource="Header"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#000000"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#000000"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="ExtraBold"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#E2E5EC"/>
+                                <Setter Property="Foreground" Value="#333333"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- CheckBox 커스텀 스타일 -->
+        <Style TargetType="CheckBox">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Foreground" Value="#111111"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <!-- 블랙 엔 화이트 메인 실행 버튼 스타일 -->
+        <Style x:Key="BlackBtnStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Background" Value="#000000"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#333333"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#555555"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 최적화 실행 다크 블루 버튼 스타일 -->
+        <Style x:Key="OptimizeBtnStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Background" Value="#0055D4"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#003399"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#001B6B"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Undo 버튼 스타일 -->
+        <Style x:Key="UndoBtnStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Background" Value="#555555"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Padding" Value="6,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#333333"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#111111"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 공용화 실행 버튼 스타일 (다크 틸 #0D9488) -->
+        <Style x:Key="StandardizeBtnStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Background" Value="#0D9488"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Padding" Value="6,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#0F766E"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#115E59"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 헤더 전용 고품격 슬림 저장 버튼 스타일 -->
+        <Style x:Key="HeaderSaveBtnStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="7,3"/>
+            <Setter Property="Margin" Value="10,0,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="3" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#334155"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#0F172A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 헤더 전용 오른쪽 정렬 버그신고/제안 버튼 스타일 -->
+        <Style x:Key="HeaderFeedbackBtnStyle" TargetType="Button">
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}"/>
+            <Setter Property="Background" Value="#E11D48"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Padding" Value="9,4"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#BE123C"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#9F1239"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="#FFFFFF" Padding="8,4,8,8">
+        <Grid>
+            <!-- TabControl Container (Spring & Socket) -->
+            <TabControl Margin="0,0,0,4" Background="#FFFFFF" BorderBrush="#CCCCCC">
+
+                <!-- TAB 1: Spring -->
+                <TabItem Header="🌀 Spring">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8">
+
+                            <!-- Template Selection Section -->
+                            <GroupBox Foreground="#111111" FontWeight="Bold" Margin="0,0,0,8">
+                                <GroupBox.Header>
+                                    <Grid Width="400">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="📋 사내 표준도면 양식 선택" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        <Button Grid.Column="1" Content="💾 저장" Click="BtnSaveTemplateOption_Click" Style="{StaticResource HeaderSaveBtnStyle}"/>
+                                    </Grid>
+                                </GroupBox.Header>
+                                <StackPanel Orientation="Vertical" Margin="8,6">
+                                    <RadioButton Content="구형 템플릿 (NEW_Template_제작도면_R01.dwg)" 
+                                                 IsChecked="{Binding IsNewR01Selected, Mode=TwoWay}"
+                                                 Foreground="#333333" FontSize="11" Margin="0,2,0,4"/>
+                                    <RadioButton Content="신형 템플릿 (2D Template_Rev00.dwg)" 
+                                                 IsChecked="{Binding IsRev00Selected, Mode=TwoWay}"
+                                                 Foreground="#333333" FontSize="11" Margin="0,0,0,2"/>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- Spring Parameters Input Form with Fix Checkboxes -->
+                            <GroupBox Foreground="#111111" FontWeight="Bold" Margin="0,0,0,8">
+                                <GroupBox.Header>
+                                    <Grid Width="400">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="📐 스프링 사양" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        <Button Grid.Column="1" Content="💾 저장" Click="BtnSaveSpringSpec_Click" Style="{StaticResource HeaderSaveBtnStyle}"/>
+                                    </Grid>
+                                </GroupBox.Header>
+                                <Grid Margin="6,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="135"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="65"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 0. 스프링 개수 (SPR_num) -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="스프링 개수:" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SPR_numText, UpdateSourceTrigger=PropertyChanged}" Background="{Binding SprNumBg}" FontWeight="Bold" Margin="0,1"/>
+                                    <CheckBox Grid.Row="0" Grid.Column="2" Content="Fix" IsChecked="{Binding FixSprNum, Mode=TwoWay}" Margin="6,0,0,0"/>
+
+                                    <!-- 0-sub. 매칭 추천 품목코드 전용 아랫줄 표시 (안 짤리도록 전용 행 배치) -->
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                               Text="{Binding MatchedPartNumberDisplay}" 
+                                               Visibility="{Binding MatchedPartNumberVisibility}"
+                                               Foreground="#0044CC" FontWeight="Bold" FontSize="12" 
+                                               Margin="4,2,0,4" HorizontalAlignment="Left"/>
+
+                                    <!-- 1. 선경 (d) -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="선경 (d, mm):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding WireDiameterText, UpdateSourceTrigger=LostFocus}" Background="{Binding WireDiameterBg}" Margin="0,1"/>
+                                    <CheckBox Grid.Row="2" Grid.Column="2" Content="Fix" IsChecked="{Binding FixWireDiameter, Mode=TwoWay}" Margin="6,0,0,0"/>
+
+                                    <!-- 2. 내경 (Di) - 실시간 자동 계산: Di = Do - 2*d -->
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="내경 (Di, mm):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding InnerDiameterText, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="Bold" Margin="0,1"/>
+
+                                    <!-- 3. 외경 (Do) -->
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="외경 (Do, mm):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding OuterDiameterText, UpdateSourceTrigger=LostFocus}" Background="{Binding OuterDiameterBg}" Margin="0,1"/>
+                                    <CheckBox Grid.Row="4" Grid.Column="2" Content="Fix" IsChecked="{Binding FixOuterDiameter, Mode=TwoWay}" Margin="6,0,0,0"/>
+
+                                    <!-- 4. 자유장 (Hs, mm) -->
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="자유장 (Hs, mm):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding FreeLengthText, UpdateSourceTrigger=LostFocus}" Background="{Binding FreeLengthBg}" Margin="0,1"/>
+                                    <CheckBox Grid.Row="5" Grid.Column="2" Content="Fix" IsChecked="{Binding FixFreeLength, Mode=TwoWay}" Margin="6,0,0,0"/>
+
+                                    <!-- 5. 총권수 (Nf) -->
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="총권수 (Nf):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding TotalCoilsText, UpdateSourceTrigger=LostFocus}" Background="{Binding TotalCoilsBg}" Margin="0,1"/>
+                                    <CheckBox Grid.Row="6" Grid.Column="2" Content="Fix" IsChecked="{Binding FixTotalCoils, Mode=TwoWay}" Margin="6,0,0,0"/>
+
+                                    <!-- 6. 유효권수 (Na) - 실시간 자동 계산: Na = Nf - 2 -->
+                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="유효권수 (Na):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding ActiveCoilsText, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="Bold" Margin="0,1"/>
+
+                                    <!-- 7. 취부,장착장 (mm) -->
+                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="취부,장착장 (mm):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding P2hText, UpdateSourceTrigger=LostFocus}" Background="{Binding P2hBg}" Margin="0,1"/>
+                                    <CheckBox Grid.Row="8" Grid.Column="2" Content="Fix" IsChecked="{Binding FixP2h, Mode=TwoWay}" Margin="6,0,0,0"/>
+
+                                    <!-- 8. 재료 (Material) ComboBox -->
+                                    <TextBlock Grid.Row="9" Grid.Column="0" Text="스프링 재료:" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <ComboBox Grid.Row="9" Grid.Column="1" 
+                                              ItemsSource="{Binding MaterialOptions}" 
+                                              SelectedItem="{Binding SelectedMaterialString, Mode=TwoWay}"
+                                              Background="{Binding MaterialBg}"
+                                              HorizontalContentAlignment="Center"
+                                              Margin="0,1"/>
+                                    <CheckBox Grid.Row="9" Grid.Column="2" Content="Fix" IsChecked="{Binding FixMaterial, Mode=TwoWay}" Margin="6,0,0,0"/>
+
+                                    <!-- 9. 횡탄성계수 (kg/mm³) -->
+                                    <TextBlock Grid.Row="10" Grid.Column="0" Text="횡탄성계수 (kg/mm³):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding MatK, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" Margin="0,1"/>
+
+                                    <!-- 10. 인장강도 (kg/mm³) -->
+                                    <TextBlock Grid.Row="11" Grid.Column="0" Text="인장강도 (kg/mm³):" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="11" Grid.Column="1" Text="{Binding Sten, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" Margin="0,1"/>
+
+                                    <!-- 11. 양끝 연마가공 상태 (자동 판정 / 읽기 전용) -->
+                                    <TextBlock Grid.Row="12" Grid.Column="0" Text="양단 연마:" Foreground="#444444" VerticalAlignment="Center" Margin="0,3"/>
+                                    <TextBox Grid.Row="12" Grid.Column="1" 
+                                             Text="{Binding GrindingEndsDisplayText, Mode=OneWay}" 
+                                             IsReadOnly="True" 
+                                             Background="#E6E8EC" 
+                                             Foreground="{Binding GrindingEndsTextColor}" 
+                                             FontWeight="SemiBold" 
+                                             Margin="0,1"/>
+                                </Grid>
+                            </GroupBox>
+
+                            <!-- Optimization & Standardization Buttons with Undo -->
+                            <Grid Margin="0,2,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="43*"/>
+                                    <ColumnDefinition Width="42*"/>
+                                    <ColumnDefinition Width="15*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" 
+                                        Style="{StaticResource OptimizeBtnStyle}" 
+                                        Click="BtnOptimize_Click" 
+                                        Margin="0,0,4,0"
+                                        ToolTip="수치 파라미터를 계산하여 스프링 개수가 최소화되는 수치 산출">
+                                    <TextBlock TextAlignment="Center" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="15">
+                                        해줘<LineBreak/>(신작-적고 작게)
+                                    </TextBlock>
+                                </Button>
+                                <Button Grid.Column="1" 
+                                        Style="{StaticResource StandardizeBtnStyle}" 
+                                        Click="BtnStandardization_Click" 
+                                        Margin="0,0,4,0"
+                                        ToolTip="Vault 공용화 DB CSV에서 현 입력 평가를 만족하는 최적 공용화 스프링 사양 검색">
+                                    <TextBlock TextAlignment="Center" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" LineHeight="15">
+                                        해줘<LineBreak/>(공용화)
+                                    </TextBlock>
+                                </Button>
+                                <Button Grid.Column="2" 
+                                        Content="↺ Undo" 
+                                        Style="{StaticResource UndoBtnStyle}" 
+                                        Click="BtnUndo_Click" 
+                                        ToolTip="최적화/공용화 실행 전 수치 상태로 복원"/>
+                            </Grid>
+
+                            <!-- 5행 4열 현 입력값 평가 표 -->
+                            <GroupBox Header="📊 현 입력값 평가" Foreground="#000000" FontWeight="Bold" Margin="0,0,0,8">
+                                <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="2" Margin="6,6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.5*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- 1행: Device Thickness | Min. | Nor. | Max. -->
+                                        <Border Grid.Row="0" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
+                                            <TextBlock Text="Device Thickness" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="0" Grid.Column="1" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
+                                            <TextBlock Text="Min." FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="0" Grid.Column="2" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
+                                            <TextBlock Text="Nor." FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="0" Grid.Column="3" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="5">
+                                            <TextBlock Text="Max." FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- 2행: Pin Force (g/Pin) | Min | Nor | Max 계산값 (회색 배경 #E6E8EC) -->
+                                        <Border Grid.Row="1" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
+                                            <TextBlock Text="Pin Force (g/Pin)" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="1" Background="#E6E8EC" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBlock Text="{Binding PinForce_min, StringFormat={}{0:F1}}" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="2" Background="#E6E8EC" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBlock Text="{Binding PinForce_nor, StringFormat={}{0:F1}}" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="3" Background="#E6E8EC" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBlock Text="{Binding PinForce_max, StringFormat={}{0:F1}}" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- 3행: Force | Min 통과여부 | Nor 통과여부 | Max 통과여부 -->
+                                        <Border Grid.Row="2" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
+                                            <TextBlock Text="Force" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="2" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBlock Text="{Binding ForceMinPassText}" Foreground="{Binding ForceMinPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="2" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBlock Text="{Binding ForceNorPassText}" Foreground="{Binding ForceNorPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="2" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBlock Text="{Binding ForceMaxPassText}" Foreground="{Binding ForceMaxPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- 4행: 허용응력 | 허용응력 통과여부 (2,3,4열 통합) -->
+                                        <Border Grid.Row="3" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
+                                            <TextBlock Text="허용응력" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBlock Text="{Binding SAloPassText}" Foreground="{Binding SAloPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- 5행: 밀착고 | min device 통과여부 (2,3,4열 통합) -->
+                                        <Border Grid.Row="4" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="5">
+                                            <TextBlock Text="밀착고" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,0" Padding="4">
+                                            <TextBlock Text="{Binding FullCompPassText}" Foreground="{Binding FullCompPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </GroupBox>
+
+                            <!-- Bottom Create Button inside Spring Tab -->
+                            <Button Content="⚡ 도면 해주세요" Style="{StaticResource BlackBtnStyle}" Click="BtnDraw_Click" Margin="0,4,0,4"/>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- TAB 2: Socket -->
+                <TabItem Header="🔲 Socket">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8">
+
+                            <!-- Section 1: Elastomer Specification Table -->
+                            <GroupBox Foreground="#111111" FontWeight="Bold" Margin="0,0,0,16">
+                                <GroupBox.Header>
+                                    <Grid Width="380">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="📊 Elastomer 스펙 데이터" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        <Button Grid.Column="1" Content="💾 저장" Click="BtnSaveElastomerSpec_Click" Style="{StaticResource HeaderSaveBtnStyle}"/>
+                                    </Grid>
+                                </GroupBox.Header>
+                                <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="2" Margin="8,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.5*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Header Row (1행) -->
+                                        <Border Grid.Row="0" Grid.Column="0" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6"><TextBlock Text="" HorizontalAlignment="Center"/></Border>
+                                        <Border Grid.Row="0" Grid.Column="1" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6"><TextBlock Text="Min" FontWeight="Bold" HorizontalAlignment="Center"/></Border>
+                                        <Border Grid.Row="0" Grid.Column="2" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6"><TextBlock Text="Nor" FontWeight="Bold" HorizontalAlignment="Center"/></Border>
+                                        <Border Grid.Row="0" Grid.Column="3" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="6"><TextBlock Text="Max" FontWeight="Bold" HorizontalAlignment="Center"/></Border>
+
+                                        <!-- Row 2: Elastomer Force (g/pin) (EF_min, EF_nor, EF_max) -->
+                                        <Border Grid.Row="1" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6">
+                                            <TextBlock Text="Elastomer Force&#10;(g/pin)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding EF_min, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding EF_nor, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBox Text="{Binding EF_max, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Row 3: Elastomer Thickness (mm) (ET_min, ET_nor, ET_max) -->
+                                        <Border Grid.Row="2" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6">
+                                            <TextBlock Text="Elastomer Thickness&#10;(mm)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="2" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding ET_min, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="2" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding ET_nor, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="2" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBox Text="{Binding ET_max, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Row 4: PMD Thickness (mm) (PT_min, PT_nor, PT_max) -->
+                                        <Border Grid.Row="3" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6">
+                                            <TextBlock Text="PMD Thickness&#10;(mm)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="3" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding PT_min, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="3" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding PT_nor, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="3" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBox Text="{Binding PT_max, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Row 5: Elastomer + PMD gap (mm) (EP_min, EP_nor, EP_max) -->
+                                        <Border Grid.Row="4" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6">
+                                            <TextBlock Text="Elastomer + PMD gap&#10;(mm)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="4" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding EP_min, StringFormat={}{0:N3}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="4" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding EP_nor, StringFormat={}{0:N3}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="4" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBox Text="{Binding EP_max, StringFormat={}{0:N3}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Row 6: Spring Force (g) (SF_min, SF_nor, SF_max) -->
+                                        <Border Grid.Row="5" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6">
+                                            <TextBlock Text="Spring Force&#10;(g)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="5" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding SF_min, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="5" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
+                                            <TextBox Text="{Binding SF_nor, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="5" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBox Text="{Binding SF_max, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- Row 7: Total Force (g) (TF_min, TF_nor, TF_max) -->
+                                        <Border Grid.Row="6" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="6">
+                                            <TextBlock Text="Total Force&#10;(g)" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="6" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="4">
+                                            <TextBox Text="{Binding TF_min, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="6" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="4">
+                                            <TextBox Text="{Binding TF_nor, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="6" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,0" Padding="4">
+                                            <TextBox Text="{Binding TF_max, StringFormat={}{0:N0}, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" Foreground="#000000" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </GroupBox>
+
+                            <!-- Section 2: PKG / Spring Quantity / LID Spring Gap Table -->
+                            <GroupBox Foreground="#111111" FontWeight="Bold">
+                                <GroupBox.Header>
+                                    <Grid Width="400">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="🛠️ PKG &amp; Gap 설계 데이터" VerticalAlignment="Center" FontWeight="Bold"/>
+                                        <Button Grid.Column="1" Content="💾 저장" Click="BtnSavePkgGap_Click" Style="{StaticResource HeaderSaveBtnStyle}"/>
+                                    </Grid>
+                                </GroupBox.Header>
+                                <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="2" Margin="8,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Header Row (1행) -->
+                                        <Border Grid.Row="0" Grid.Column="0" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6"><TextBlock Text="PKG" FontWeight="Bold" HorizontalAlignment="Center"/></Border>
+                                        <Border Grid.Row="0" Grid.Column="1" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="6"><TextBlock Text="Spring Quantity" FontWeight="Bold" HorizontalAlignment="Center"/></Border>
+                                        <Border Grid.Row="0" Grid.Column="2" Background="#F0F0F0" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="6"><TextBlock Text="LID Spring Gap" FontWeight="Bold" HorizontalAlignment="Center"/></Border>
+
+                                        <!-- Data Row (2행) -->
+                                        <Border Grid.Row="1" Grid.Column="0" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="4">
+                                            <TextBox Text="{Binding PKG, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="4">
+                                            <TextBox Text="{Binding SPR_num, Mode=OneWay}" IsReadOnly="True" Background="#E6E8EC" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,0,0" Padding="4">
+                                            <TextBox Text="{Binding LID_gap, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </GroupBox>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+            </TabControl>
+
+            <!-- Top Right Feedback Button (Aligned with tab headers) -->
+            <Button Content="🐞 버그신고/제안" 
+                    Click="BtnFeedback_Click" 
+                    Style="{StaticResource HeaderFeedbackBtnStyle}"
+                    Height="28"
+                    Margin="0,5,8,0"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Right"
+                    Panel.ZIndex="10"/>
+        </Grid>
+    </Border>
+</UserControl>

@@ -1,0 +1,210 @@
+<Window x:Class="BOMManager.Modules.SpringDesigner.Views.SpringStandardizationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="⚡ 맞춤 공용화 스프링 후보 비교 / 선택" 
+        Height="680" Width="1050"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC"
+        FontFamily="pack://application:,,,/resources/Fonts/#Pretendard, ./resources/Fonts/#Pretendard, Pretendard, Malgun Gothic, Segoe UI, sans-serif">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 상단 헤더 영역 -->
+        <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="20,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                            <TextBlock Text="⚡ 맞춤 공용화 DB 매칭" FontSize="11" FontWeight="Bold" Foreground="#1D4ED8"/>
+                        </Border>
+                        <TextBlock Text="최적 스프링 후보 비교표" FontSize="16" FontWeight="ExtraBold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="사내 공용화 스프링 중 현재 설계 치수 및 하중/응력 조건을 만족하는 규격을 우선 순위별로 표시합니다." 
+                               FontSize="12" Foreground="#64748B"/>
+                </StackPanel>
+
+                <!-- 닫기 아이콘 버튼 -->
+                <Button Grid.Column="1" Content="✕" Width="28" Height="28" Background="Transparent" BorderThickness="0" 
+                        FontSize="14" FontWeight="Bold" Foreground="#94A3B8" Click="BtnCancel_Click" Cursor="Hand"/>
+            </Grid>
+        </Border>
+
+        <!-- 중앙 후보군 카드 리스트 영역 -->
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Padding="16,20">
+            <ItemsControl x:Name="CandidatesItemsControl">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <!-- 후보 카드 박스 -->
+                        <Border Width="310" Margin="0,0,16,0" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1.5" CornerRadius="12">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="12" Color="#0F172A" Opacity="0.06" Direction="270" ShadowDepth="3"/>
+                            </Border.Effect>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- 카드 상단 랭크 & 추천 뱃지 -->
+                                <Border Grid.Row="0" Background="#F1F5F9" CornerRadius="12,12,0,0" Padding="16,12" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Background="#1E293B" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding RankLabel}" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                            </Border>
+                                            <TextBlock Text="{Binding PartNumber}" FontSize="13" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <!-- 1순위 베스트 추천 뱃지 -->
+                                        <Border HorizontalAlignment="Right" Background="#DCFCE7" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="12" Padding="8,3"
+                                                Visibility="{Binding IsRecommended, Converter={StaticResource BoolToVis}, FallbackValue=Collapsed}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="★ BEST 추천" FontSize="11" FontWeight="ExtraBold" Foreground="#15803D"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 카드 본문 스펙 표 -->
+                                <Grid Grid.Row="1" Margin="16,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- 권장 수량 하이라이트 -->
+                                    <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,10">
+                                        <Grid>
+                                            <TextBlock Text="권장 스프링 수량" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" VerticalAlignment="Center"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding RecommendedSprNum}" FontSize="16" FontWeight="ExtraBold" Foreground="#1D4ED8"/>
+                                                <TextBlock Text=" 개" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="도면 번호 (Drawing No):" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DrawingNo}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0F172A" HorizontalAlignment="Right" Margin="0,4"/>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="선경 (Wire Dia, d):" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding WireDiameter, StringFormat={}{0:F2} mm}" FontSize="11.5" FontWeight="Bold" Foreground="#0F172A" HorizontalAlignment="Right" Margin="0,4"/>
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="외경 (Outer Dia, Do):" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding OuterDiameter, StringFormat={}{0:F2} mm}" FontSize="11.5" FontWeight="Bold" Foreground="#0F172A" HorizontalAlignment="Right" Margin="0,4"/>
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="내경 (Inner Dia, Di):" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding InnerDiameter, StringFormat={}{0:F2} mm}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0F172A" HorizontalAlignment="Right" Margin="0,4"/>
+
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="자유장 (Free Length, hs):" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding FreeLength, StringFormat={}{0:F2} mm}" FontSize="11.5" FontWeight="Bold" Foreground="#0F172A" HorizontalAlignment="Right" Margin="0,4"/>
+
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="총권수 / 유효권수:" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4">
+                                        <TextBlock Text="{Binding TotalCoils, StringFormat={}{0:F1}}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                        <TextBlock Text=" / " FontSize="11.5" Foreground="#94A3B8"/>
+                                        <TextBlock Text="{Binding ActiveCoils, StringFormat={}{0:F1}}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0F172A"/>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="취부, 장착장 (P2h):" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding P2h, StringFormat={}{0:F2} mm}" FontSize="11.5" FontWeight="SemiBold" Foreground="#0F172A" HorizontalAlignment="Right" Margin="0,4"/>
+
+                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="재질 (Material):" FontSize="11.5" Foreground="#64748B" Margin="0,4"/>
+                                    <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding MaterialName}" FontSize="11.5" FontWeight="Bold" Foreground="#2563EB" HorizontalAlignment="Right" Margin="0,4"/>
+                                </Grid>
+
+                                <!-- 카드 하단 선택 버튼 -->
+                                <Border Grid.Row="2" Padding="14,0,14,14">
+                                    <Button Content="✔ 사양 선택" Height="38" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF"
+                                            Tag="{Binding}" Click="BtnSelectCandidate_Click" Cursor="Hand">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Background" Value="#2563EB"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="4">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#1D4ED8"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- 하단 닫기/취소 버튼 영역 -->
+        <Border Grid.Row="2" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="16,12">
+            <Grid>
+                <TextBlock Text="※ 사양을 선택하면 메인 폼의 입력값들이 노란색 하이라이트와 함께 공용화 모드로 자동 변경됩니다." 
+                           FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
+                <Button Content="취소 (선택 안 함)" Width="120" Height="32" HorizontalAlignment="Right" Background="#94A3B8" Foreground="#FFFFFF" 
+                        FontWeight="Bold" FontSize="11.5" Click="BtnCancel_Click" Cursor="Hand">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#64748B"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
