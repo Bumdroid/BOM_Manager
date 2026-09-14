@@ -1,33 +1,75 @@
 @echo off
-setlocal
-chcp 949 > nul
+setlocal enabledelayedexpansion
+chcp 65001 > nul
+cls
 
+echo.
 echo ================================================================
-echo   [DT ¿î¿µ°ü¸®ÆÀ] Design Automation Portal ¿øÅ°(One-Key) ¼³Ä¡
+echo    Design Automation Portal (ì„¤ê³„/DT ìžë™í™” í¬í„¸) ì›í‚¤ ì„¤ì¹˜
 echo ================================================================
 echo.
 
 set "SOURCE_DIR=%~dp0"
 set "TARGET_DIR=C:\ISC_DT_Automation"
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $src = $env:SOURCE_DIR; $target = $env:TARGET_DIR; Write-Host '[1/3] ¼³Ä¡ ´ë»ó Æú´õ ÁØºñ Áß...'; if (-not (Test-Path $target)) { New-Item -ItemType Directory -Path $target -Force | Out-Null; Write-Host ('  - ´ë»ó Æú´õ »ý¼º: ' + $target); } else { Write-Host ('  - ±âÁ¸ ´ë»ó Æú´õ È®ÀÎ: ' + $target); } Write-Host ''; Write-Host '[2/3] ÇÁ·Î±×·¥ ¾ÐÃà ÇØÁ¦ ¹× ¼³Ä¡ ÆÄÀÏ º¹»ç Áß...'; $zip = Get-ChildItem -Path $src -Filter 'Design_Automation_Portal_*.zip' -File -ErrorAction SilentlyContinue | Select-Object -First 1; if (-not $zip) { $zip = Get-ChildItem -Path (Join-Path $src 'Dist') -Filter 'Design_Automation_Portal_*.zip' -File -ErrorAction SilentlyContinue | Select-Object -First 1; } if (-not $zip) { $zip = Get-ChildItem -Path $src -Filter 'BOM_Manager_*.zip' -File -ErrorAction SilentlyContinue | Select-Object -First 1; } if (-not $zip) { $zip = Get-ChildItem -Path (Join-Path $src 'Dist') -Filter 'BOM_Manager_*.zip' -File -ErrorAction SilentlyContinue | Select-Object -First 1; } if ($zip) { Write-Host ('  - ¹èÆ÷ ¾ÐÃà ÆÄÀÏ ¹ß°ß: ' + $zip.FullName); Write-Host ('  - ' + $target + ' À¸·Î ÀÚµ¿ ¾ÐÃà ÇØÁ¦ Áß...'); Expand-Archive -LiteralPath $zip.FullName -DestinationPath $target -Force; Write-Host '  - ¾ÐÃà ÇØÁ¦ ¿Ï·á!'; } else { Write-Host '  - ¹èÆ÷ Æú´õÀÇ ÆÄÀÏÀ» Á÷Á¢ º¹»çÇÕ´Ï´Ù...'; Copy-Item -Path (Join-Path $src '*') -Destination $target -Recurse -Force; Write-Host '  - ÆÄÀÏ º¹»ç ¿Ï·á!'; } $subStandalone = Join-Path $target 'dist_standalone'; if (Test-Path $subStandalone) { Copy-Item -Path (Join-Path $subStandalone '*') -Destination $target -Recurse -Force; Remove-Item -Path $subStandalone -Recurse -Force -ErrorAction SilentlyContinue; } $portalExe = Join-Path $target 'Design_Automation_Portal.exe'; $oldExe = Join-Path $target 'BOM_Manager.exe'; $oldCfg = Join-Path $target 'BOM_Manager.exe.config'; if (Test-Path $portalExe) { if (Test-Path $oldExe) { Remove-Item $oldExe -Force -ErrorAction SilentlyContinue; } if (Test-Path $oldCfg) { Remove-Item $oldCfg -Force -ErrorAction SilentlyContinue; } } $targetRes = Join-Path $target 'resources'; $srcRes = Join-Path $src 'resources'; if (-not (Test-Path $targetRes) -and (Test-Path $srcRes)) { Copy-Item -Path $srcRes -Destination $target -Recurse -Force; } Write-Host ''; Write-Host '[3/3] À©µµ¿ì ¹ÙÅÁÈ­¸é¿¡ ¹Ù·Î°¡±â ¾ÆÀÌÄÜ »ý¼º Áß...'; $exePath = if (Test-Path $portalExe) { $portalExe } else { $oldExe }; $icoPath = Join-Path $target 'resources\app.ico'; $WshShell = New-Object -ComObject WScript.Shell; $deskFolders = @([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Desktop), (Join-Path $env:USERPROFILE 'Desktop'), (Join-Path $env:USERPROFILE 'OneDrive - ISC\¹ÙÅÁ È­¸é'), (Join-Path $env:USERPROFILE 'OneDrive\¹ÙÅÁ È­¸é')) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique; foreach ($desk in $deskFolders) { $lnkPath = Join-Path $desk 'Design Automation Portal.lnk'; if (Test-Path $lnkPath) { Remove-Item $lnkPath -Force -ErrorAction SilentlyContinue; } $sc = $WshShell.CreateShortcut($lnkPath); $sc.TargetPath = $exePath; $sc.WorkingDirectory = $target; if (Test-Path $icoPath) { $sc.IconLocation = ($icoPath + ',0'); } else { $sc.IconLocation = ($exePath + ',0'); } $sc.Description = 'Design Automation Portal (Alpha V0.0) - SolidWorks & Automation Suite'; $sc.Save(); Write-Host ('  - ¹ÙÅÁÈ­¸é ¹Ù·Î°¡±â µî·Ï ¿Ï·á: ' + $lnkPath); } }"
+echo  [1/3] ì„¤ì¹˜ ë””ë ‰í„°ë¦¬ ì¤€ë¹„ ì¤‘...
+if not exist "%TARGET_DIR%" (
+    mkdir "%TARGET_DIR%" > nul 2>&1
+    echo        - ì‹ ê·œ í´ë” ìƒì„±: %TARGET_DIR%
+) else (
+    echo        - ê¸°ì¡´ í´ë” í™•ì¸: %TARGET_DIR%
+)
+
+echo.
+echo  [2/3] í”„ë¡œê·¸ëž¨ ë° ìµœì‹  ëª¨ë“ˆ íŒŒì¼ ì„¤ì¹˜ ì¤‘...
+
+:: 1. ZIP ì••ì¶• í•´ì œ (ë°°í¬ íŒ¨í‚¤ì§€ê°€ ìžˆëŠ” ê²½ìš°)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $src = '%SOURCE_DIR%'; $target = '%TARGET_DIR%'; $zip = Get-ChildItem -LiteralPath $src -Filter 'Design_Automation_Portal_*.zip' -File | Select-Object -First 1; if (-not $zip) { $dist = Join-Path $src 'Dist'; if (Test-Path $dist) { $zip = Get-ChildItem -LiteralPath $dist -Filter 'Design_Automation_Portal_*.zip' -File | Select-Object -First 1 } }; if ($zip) { Expand-Archive -LiteralPath $zip.FullName -DestinationPath $target -Force } else { Copy-Item (Join-Path $src '*') $target -Recurse -Force }" > nul 2>&1
+
+:: 2. í•˜ìœ„ dist_standalone í‰íƒ„í™”
+if exist "%TARGET_DIR%\dist_standalone" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; Copy-Item 'C:\ISC_DT_Automation\dist_standalone\*' 'C:\ISC_DT_Automation' -Recurse -Force; Remove-Item 'C:\ISC_DT_Automation\dist_standalone' -Recurse -Force" > nul 2>&1
+)
+
+:: 3. ë ˆê±°ì‹œ BOM_Manager íŒŒì¼ ì •ë¦¬
+if exist "%TARGET_DIR%\Design_Automation_Portal.exe" (
+    if exist "%TARGET_DIR%\BOM_Manager.exe" del /f /q "%TARGET_DIR%\BOM_Manager.exe" > nul 2>&1
+    if exist "%TARGET_DIR%\BOM_Manager.exe.config" del /f /q "%TARGET_DIR%\BOM_Manager.exe.config" > nul 2>&1
+)
+
+:: 4. ì–¸ì¸ìŠ¤í†¨ëŸ¬ ë³µì‚¬
+if exist "%SOURCE_DIR%Uninstall_DT_Design.bat" (
+    copy /y "%SOURCE_DIR%Uninstall_DT_Design.bat" "%TARGET_DIR%\Uninstall_DT_Design.bat" > nul 2>&1
+) else if exist "%SOURCE_DIR%Dist\Uninstall_DT_Design.bat" (
+    copy /y "%SOURCE_DIR%Dist\Uninstall_DT_Design.bat" "%TARGET_DIR%\Uninstall_DT_Design.bat" > nul 2>&1
+)
+
+echo        - íŒŒì¼ ë°°ì¹˜ ì™„ë£Œ
+
+echo.
+echo  [3/3] ë°”íƒ•í™”ë©´ ë°”ë¡œê°€ê¸° ë“±ë¡ ì¤‘...
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $target = '%TARGET_DIR%'; $exe = Join-Path $target 'Design_Automation_Portal.exe'; $ico = Join-Path $target 'resources\app.ico'; $Wsh = New-Object -ComObject WScript.Shell; $desks = @([System.Environment]::GetFolderPath('Desktop'), (Join-Path $env:USERPROFILE 'Desktop'), (Join-Path $env:USERPROFILE 'OneDrive - ISC\ë°”íƒ• í™”ë©´'), (Join-Path $env:USERPROFILE 'OneDrive\ë°”íƒ• í™”ë©´'), (Join-Path $env:USERPROFILE 'OneDrive - ISC\Desktop'), (Join-Path $env:USERPROFILE 'OneDrive\Desktop')) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique; foreach ($d in $desks) { $lnk = Join-Path $d 'Design Automation Portal.lnk'; if (Test-Path -LiteralPath $lnk) { Remove-Item -LiteralPath $lnk -Force }; $sc = $Wsh.CreateShortcut($lnk); $sc.TargetPath = $exe; $sc.WorkingDirectory = $target; if (Test-Path -LiteralPath $ico) { $sc.IconLocation = $ico + ',0' }; $sc.Description = 'Design Automation Portal - SolidWorks & Automation Suite'; $sc.Save() }" > nul 2>&1
+
+echo        - ë°”íƒ•í™”ë©´ ë°”ë¡œê°€ê¸° ìƒì„± ì™„ë£Œ
 
 echo.
 echo ================================================================
-echo   [¿Ï·á] ¹ÙÅÁÈ­¸é ¹Ù·Î°¡±â ¹× ¼³Ä¡°¡ ¼º°øÀûÀ¸·Î ¿Ï·áµÇ¾ú½À´Ï´Ù!
-echo   - ¼³Ä¡ °æ·Î: %TARGET_DIR%
-echo   - ½ÇÇà ÆÄÀÏ: %TARGET_DIR%\Design_Automation_Portal.exe
-echo   - ¹ÙÅÁÈ­¸é [Design Automation Portal] ¾ÆÀÌÄÜÀ¸·Î ½ÇÇàÇÏ¼¼¿ä.
+echo   âœ” ì„¤ì¹˜ê°€ ì„±ê³µì ìœ¼ë¡œ ì™„ë£Œë˜ì—ˆìŠµë‹ˆë‹¤!
+echo   --------------------------------------------------------------
+echo   - ì„¤ì¹˜ ê²½ë¡œ    : %TARGET_DIR%
+echo   - ì‹¤í–‰ íŒŒì¼    : %TARGET_DIR%\Design_Automation_Portal.exe
+echo   - ì–¸ì¸ìŠ¤í†¨ëŸ¬   : %TARGET_DIR%\Uninstall_DT_Design.bat
 echo ================================================================
 echo.
 
-set /p RUN_NOW="Áö±Ý ¹Ù·Î ÇÁ·Î±×·¥À» ½ÇÇàÇÏ½Ã°Ú½À´Ï±î? (Y/N, ±âº»°ª: Y): "
+set /p RUN_NOW=" ì§€ê¸ˆ ë°”ë¡œ í”„ë¡œê·¸ëž¨ì„ ì‹¤í–‰í•˜ì‹œê² ìŠµë‹ˆê¹Œ? (Y/N, ê¸°ë³¸ê°’: Y): "
 if /i "%RUN_NOW%"=="N" goto finish
 
 start "" "%TARGET_DIR%\Design_Automation_Portal.exe"
 
 :finish
 echo.
-echo Ã¢À» ´ÝÀ¸·Á¸é ¾Æ¹« Å°³ª ´©¸£¼¼¿ä...
+echo  ì°½ì„ ë‹«ìœ¼ë ¤ë©´ ì•„ë¬´ í‚¤ë‚˜ ëˆ„ë¥´ì„¸ìš”...
 pause > nul
 endlocal

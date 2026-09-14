@@ -173,7 +173,7 @@
                     <ColumnDefinition Width="Auto"/> <!-- Settings Button -->
                 </Grid.ColumnDefinitions>
 
-                <!-- Brand Title with Alpha V0.0 Badge -->
+                <!-- Brand Title with Alpha Version Badge -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Design Automation Portal"
                                FontSize="22"
@@ -187,7 +187,8 @@
                             Padding="8,2"
                             Margin="10,0,0,0"
                             VerticalAlignment="Center">
-                        <TextBlock Text="Alpha V0.0"
+                        <TextBlock x:Name="txtPortalVersionBadge"
+                                   Text="Alpha V0.2"
                                    FontSize="12"
                                    FontWeight="Bold"
                                    Foreground="#7C3AED"
@@ -360,7 +361,7 @@
                         <TextBlock Text="BOM Manager" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                             <Border Background="#DBEAFE" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
-                                <TextBlock Text="Alpha V0.1" FontSize="11" FontWeight="Bold" Foreground="#1D4ED8"/>
+                                <TextBlock Text="Alpha V0.2" FontSize="11" FontWeight="Bold" Foreground="#1D4ED8"/>
                             </Border>
                             <TextBlock Text="SolidWorks 2021 연동" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB" VerticalAlignment="Center"/>
                         </StackPanel>

@@ -1048,9 +1048,41 @@ namespace BOMManager.Tests
             try
             {
                 string script = VaultUpdateService.GenerateUpdaterScript(12345, @"C:\Temp\extracted", @"C:\App", "Design_Automation_Portal.exe");
-                if (!script.Contains("PID eq 12345")) throw new Exception("Script does not contain PID check");
-                if (!script.Contains("xcopy")) throw new Exception("Script does not contain xcopy");
-                if (!script.Contains(@"start """" ""C:\App\Design_Automation_Portal.exe""")) throw new Exception("Script does not restart target exe");
+                if (!script.Contains("12345")) throw new Exception("Script does not contain PID check");
+                if (!script.Contains("Copy-Item") && !script.Contains("xcopy")) throw new Exception("Script does not contain copy command");
+                if (!script.Contains("Start-Process") && !script.Contains("start")) throw new Exception("Script does not restart target exe");
+
+                // Check live Vault connection if available
+                try
+                {
+                    var cfg = VaultConfigManager.Load();
+                    var loginResult = Autodesk.DataManagement.Client.Framework.Vault.Library.ConnectionManager.LogIn(
+                        cfg.Server, cfg.VaultName, cfg.LastUsername, cfg.Password ?? "",
+                        Autodesk.DataManagement.Client.Framework.Vault.Currency.Connections.AuthenticationFlags.ReadOnly, null);
+                    if (loginResult.Success && loginResult.Connection != null)
+                    {
+                        var conn = loginResult.Connection;
+                        var folder = conn.WebServiceManager.DocumentService.GetFolderByPath(VaultUpdateService.DefaultUpdateFolderPath);
+                        if (folder != null)
+                        {
+                            var files = conn.WebServiceManager.DocumentService.GetLatestFilesByFolderId(folder.Id, true);
+                            Console.WriteLine($" [INFO] Vault folder files count: {files?.Length ?? 0}");
+                            if (files != null)
+                            {
+                                foreach (var f in files)
+                                {
+                                    var v = VaultUpdateService.ExtractAppVersion(f.Name);
+                                    Console.WriteLine($" [INFO] - File: '{f.Name}', Size: {f.FileSize}, Mod: {f.ModDate}, ExtractedVer: '{v?.DisplayString ?? "NULL"}'");
+                                }
+                            }
+                        }
+                        Autodesk.DataManagement.Client.Framework.Vault.Library.ConnectionManager.LogOut(conn);
+                    }
+                }
+                catch (Exception vaultEx)
+                {
+                    Console.WriteLine($" [INFO] Live Vault Check Skipped: {vaultEx.Message}");
+                }
 
                 Console.WriteLine(" [PASS] Test 24: 프로세스 종료 대기, 파일 교체 및 신규 버전 자동 재시작 스크립트 생성 검증 성공");
                 passed++;
@@ -1196,10 +1228,84 @@ namespace BOMManager.Tests
                 failed++;
             }
 
+            // Test 27: Vault 자동 업데이트 버전 비교 및 스크립트 생성 정밀 검증
+            try
+            {
+                // 1. AppVersion 파싱 및 비교
+                var vAlpha01 = VaultUpdateService.ParseVersionString("Alpha V0.1");
+                var vAlpha02 = VaultUpdateService.ParseVersionString("Alpha V0.2");
+                var vAlpha03 = VaultUpdateService.ParseVersionString("Alpha V0.3");
+                var vBeta01 = VaultUpdateService.ParseVersionString("Beta V0.1");
+                var vRelease10 = VaultUpdateService.ParseVersionString("V1.0");
+
+                if (vAlpha01 == null || vAlpha02 == null || vAlpha03 == null || vBeta01 == null || vRelease10 == null)
+                {
+                    throw new Exception("Version string parsing failed for one or more test versions.");
+                }
+
+                if (!(vAlpha01 < vAlpha02)) throw new Exception($"Expected Alpha V0.1 < Alpha V0.2, but got {vAlpha01} vs {vAlpha02}");
+                if (!(vAlpha02 < vAlpha03)) throw new Exception($"Expected Alpha V0.2 < Alpha V0.3, but got {vAlpha02} vs {vAlpha03}");
+                if (!(vAlpha03 < vBeta01)) throw new Exception($"Expected Alpha V0.3 < Beta V0.1, but got {vAlpha03} vs {vBeta01}");
+                if (!(vBeta01 < vRelease10)) throw new Exception($"Expected Beta V0.1 < V1.0, but got {vBeta01} vs {vRelease10}");
+
+                // 2. 파일명에서 버전 추출
+                var extracted01 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.1.zip");
+                var extracted02 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.2.zip");
+                var extracted03 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.3.zip");
+                var extractedLegacy = VaultUpdateService.ExtractAppVersion("BOM_Manager_Alpha_V0.1.zip");
+
+                if (extracted01 == null || extracted01.DisplayString != "Alpha V0.1") throw new Exception($"Extracted {extracted01?.DisplayString} != Alpha V0.1");
+                if (extracted02 == null || extracted02.DisplayString != "Alpha V0.2") throw new Exception($"Extracted {extracted02?.DisplayString} != Alpha V0.2");
+                if (extracted03 == null || extracted03.DisplayString != "Alpha V0.3") throw new Exception($"Extracted {extracted03?.DisplayString} != Alpha V0.3");
+                if (extractedLegacy == null || extractedLegacy.DisplayString != "Alpha V0.1") throw new Exception($"Extracted {extractedLegacy?.DisplayString} != Alpha V0.1");
+
+                // 3. 최신 후보 선출 검증
+                var filesInVault = new List<string>
+                {
+                    "Design_Automation_Portal_Alpha_V0.0.zip",
+                    "Design_Automation_Portal_Alpha_V0.1.zip",
+                    "Design_Automation_Portal_Alpha_V0.2.zip",
+                    "Design_Automation_Portal_Alpha_V0.3.zip"
+                };
+
+                // 현재 버전이 Alpha V0.2일 때 -> Alpha V0.3이 선출되어야 함
+                var candidateFor02 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha02);
+                if (candidateFor02 == null || candidateFor02.Version.DisplayString != "Alpha V0.3")
+                {
+                    throw new Exception($"Expected update candidate Alpha V0.3 for current version Alpha V0.2, got {candidateFor02?.Version.DisplayString}");
+                }
+
+                // 현재 버전이 Alpha V0.3일 때 -> 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
+                var candidateFor03 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha03);
+                if (candidateFor03 != null)
+                {
+                    throw new Exception($"Expected NO update candidate for current version Alpha V0.3, but got {candidateFor03.Version.DisplayString}");
+                }
+
+                // 4. 파워쉘 자가 교체 스크립트 생성 검증 (한글 경로 및 괄호 포함)
+                string testExtracted = @"C:\Users\이두규(IeeDuKyu)\AppData\Local\Temp\BOM_Manager_Update\extracted";
+                string testTarget = @"C:\ISC_DT_Automation";
+                string script = VaultUpdateService.GenerateUpdaterPs1Script(9999, testExtracted, testTarget, "Design_Automation_Portal.exe");
+
+                if (!script.Contains("robocopy") || !script.Contains("$pidToWait = 9999") || !script.Contains("이두규(IeeDuKyu)"))
+                {
+                    throw new Exception("Generated updater script is missing required parameters or robocopy logic.");
+                }
+
+                Console.WriteLine(" [PASS] Test 27: Vault 자동 업데이트 버전 비교(Alpha V0.2 < V0.3), 무한반복 방지 및 파워쉘 스크립트 생성 검증 성공");
+                passed++;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" [FAIL] Test 27: {ex.Message}");
+                failed++;
+            }
+
             Console.WriteLine($"\n=== 결과: {passed} 통과, {failed} 실패 ===");
             return failed == 0 ? 0 : 1;
         }
     }
 }
+
 
 

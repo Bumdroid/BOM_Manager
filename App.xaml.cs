@@ -180,7 +180,11 @@ namespace BOMManager
                         bool? updateResult = updateDlg.ShowDialog();
                         if (updateResult == true && updateDlg.UpdateInitiated)
                         {
-                            Log("자가 업데이트 프로세스가 실행되었으므로 현재 인스턴스를 종료합니다.");
+                            Log("자가 업데이트 프로세스를 실행하고 현재 인스턴스를 종료합니다.");
+                            if (!string.IsNullOrEmpty(updateDlg.UpdaterScriptPath))
+                            {
+                                VaultUpdateService.LaunchUpdater(updateDlg.UpdaterScriptPath);
+                            }
                             Shutdown();
                             return;
                         }

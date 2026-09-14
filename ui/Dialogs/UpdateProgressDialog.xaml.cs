@@ -16,19 +16,18 @@ namespace BOMManager.UI.Dialogs
         private readonly string _username;
         private readonly string _password;
 
-        public bool UpdateInitiated { get; private set; }
+        public bool UpdateInitiated { get; private set; } = false;
+        public string? UpdaterScriptPath { get; private set; }
 
-        public UpdateProgressDialog(
-            string server,
-            string vault,
-            string username,
-            string password)
+        public UpdateProgressDialog(string server, string vault, string username, string password, UpdateCheckResult? preloadedUpdateInfo = null)
         {
             InitializeComponent();
+
             _server = server;
             _vault = vault;
             _username = username;
             _password = password;
+            _preloadedUpdateInfo = preloadedUpdateInfo;
 
             LoadAppIcon();
         }
@@ -39,9 +38,8 @@ namespace BOMManager.UI.Dialogs
             string vault,
             string username,
             string password)
-            : this(server, vault, username, password)
+            : this(server, vault, username, password, updateInfo)
         {
-            _preloadedUpdateInfo = updateInfo;
         }
 
         private void LoadAppIcon()
@@ -155,7 +153,8 @@ namespace BOMManager.UI.Dialogs
                 {
                     success = await Task.Run(() =>
                     {
-                        return VaultUpdateService.DownloadAndApplyUpdate(
+                        string scriptPath;
+                        bool res = VaultUpdateService.DownloadAndApplyUpdate(
                             _server,
                             _vault,
                             _username,
@@ -170,7 +169,14 @@ namespace BOMManager.UI.Dialogs
                                     txtStatus.Text = status;
                                 });
                             },
+                            out scriptPath,
                             out errorMsg);
+
+                        if (res)
+                        {
+                            UpdaterScriptPath = scriptPath;
+                        }
+                        return res;
                     });
                 }
                 catch (Exception ex)

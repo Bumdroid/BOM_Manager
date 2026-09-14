@@ -30,6 +30,7 @@ namespace BOMManager.UI
 
             LoadAppLogos();
             UpdateVaultUserDisplay();
+            txtPortalVersionBadge.Text = VaultUpdateService.CurrentAppVersion.DisplayString;
 
             _statusPollTimer = new DispatcherTimer
             {

@@ -8,9 +8,10 @@
     <AssemblyName>Design_Automation_Portal</AssemblyName>
     <RootNamespace>BOMManager</RootNamespace>
     <StartupObject>BOMManager.App</StartupObject>
-    <Version>0.1.0</Version>
-    <AssemblyVersion>0.1.0.0</AssemblyVersion>
-    <FileVersion>0.1.0.0</FileVersion>
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <FileVersion>0.2.0.0</FileVersion>
+    <InformationalVersion>Alpha V0.2</InformationalVersion>
     <Product>Design Automation Portal</Product>
     <Company>CAD Automation</Company>
     <ApplicationIcon>resources\app.ico</ApplicationIcon>
