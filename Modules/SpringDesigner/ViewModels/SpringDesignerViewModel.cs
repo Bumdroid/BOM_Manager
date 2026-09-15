@@ -819,6 +819,25 @@ namespace BOMManager.Modules.SpringDesigner.ViewModels
         public double SAlo => _parameters.SAlo;
         public double SAloPercent => _parameters.SAlo * 100.0;
 
+        // --- 스프링 지수 (c) 기반 제작성 / 양산성 / 비고 평가 ---
+        public double SpringIndex => _parameters.SpIdx;
+        public string SpringIndexDisplayText => $"(c={SpringIndex:F2})";
+        public string SpringIndexLabelText => $"제작성 ({SpringIndex:F2})";
+
+        public string ManufacturabilityRating => _parameters.ManufacturabilityRating;
+        public string MassProductivityRating => _parameters.MassProductivityRating;
+        public string ManufacturabilityRemark => _parameters.ManufacturabilityRemark;
+
+        public string ManufacturabilitySummaryLine => $"제작성 : {ManufacturabilityRating},  양산성 : {MassProductivityRating}";
+        public string ManufacturabilityRemarkLine => $"비고 : {ManufacturabilityRemark}";
+
+        public string ManufacturabilityLine1 => $"제작성 : {ManufacturabilityRating}";
+        public string ManufacturabilityLine2 => $"양산성 : {MassProductivityRating}";
+        public string ManufacturabilityLine3 => $"비고 : {ManufacturabilityRemark}";
+
+        public string ManufacturabilityFullText => $"{ManufacturabilitySummaryLine}\n{ManufacturabilityRemarkLine}";
+        public string ManufacturabilityColor => _parameters.ManufacturabilityColor;
+
         public double MatK => _parameters.MatK;
         public double Sten => _parameters.Sten;
 
@@ -1230,75 +1249,15 @@ namespace BOMManager.Modules.SpringDesigner.ViewModels
             SpringMaterial[] matRange = FixMaterial ? new[] { currentMat } : new[] { SpringMaterial.MusicWire, SpringMaterial.SUS };
             int[] sprNumRange = FixSprNum ? new[] { currentSprNum } : GenerateEvenIntRange(2, 100);
 
-            double bestSprNum = double.MaxValue;
-            SpringDesignParameters? bestSolution = null;
+            // 1단계 시도: 제작성 최우선 영역 (c >= 8.0 ~ 12.0)
+            SpringDesignParameters? bestSolution = FindOptimalSolution(
+                sprNumRange, matRange, dRange, doRange, hsRange, nfRange, p2hRange, 8.0, 12.0);
 
-            // 백업 및 알고리즘 시뮬레이션
-            SpringDesignParameters testParam = new SpringDesignParameters
+            // 2단계 시도: c >= 8.0 해가 없을 경우 표준 권장 영역 (c >= 4.0 ~ 12.0)으로 완화 재시도
+            if (bestSolution == null)
             {
-                EF_min = Parameters.EF_min,
-                EF_nor = Parameters.EF_nor,
-                EF_max = Parameters.EF_max,
-                ET_min = Parameters.ET_min,
-                ET_nor = Parameters.ET_nor,
-                ET_max = Parameters.ET_max,
-                PT_min = Parameters.PT_min,
-                PT_nor = Parameters.PT_nor,
-                PT_max = Parameters.PT_max,
-                PKG = Parameters.PKG,
-                LID_gap = Parameters.LID_gap,
-                IsGrindingEnds = Parameters.IsGrindingEnds
-            };
-
-            foreach (int sprNum in sprNumRange)
-            {
-                testParam.SPR_num = sprNum;
-
-                foreach (SpringMaterial mat in matRange)
-                {
-                    testParam.Material = mat;
-
-                    foreach (double d in dRange)
-                    {
-                        testParam.WireDiameter = d;
-                        testParam.IsGrindingEnds = (d >= 0.50);
-
-                        foreach (double doVal in doRange)
-                        {
-                            testParam.OuterDiameter = doVal;
-                            // InnerDiameter는 OuterDiameter - (2 * WireDiameter) 연산 프로퍼티로 자동 계산됨
-
-                            foreach (double hs in hsRange)
-                            {
-                                testParam.FreeLength = hs;
-
-                                foreach (double nf in nfRange)
-                                {
-                                    testParam.TotalCoils = nf;
-                                    // testParam.ActiveCoils는 TotalCoils - 2.0으로 자동 계산됨
-
-                                    foreach (double p2h in p2hRange)
-                                    {
-                                        testParam.P2h = p2h;
-
-                                        // 제약 조건 검증
-                                        if (IsValidSolution(testParam))
-                                        {
-                                            if (sprNum < bestSprNum)
-                                            {
-                                                bestSprNum = sprNum;
-                                                bestSolution = CloneParameters(testParam);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 최소 spr_num을 찾은 경우 즉시 조기 종료
-                if (bestSolution != null) break;
+                bestSolution = FindOptimalSolution(
+                    sprNumRange, matRange, dRange, doRange, hsRange, nfRange, p2hRange, 4.0, 12.0);
             }
 
             // 4. 결과 적용 및 배경색 노란색 하이라이트 세팅
@@ -2021,7 +1980,87 @@ namespace BOMManager.Modules.SpringDesigner.ViewModels
             return list;
         }
 
-        private bool IsValidSolution(SpringDesignParameters p)
+        private SpringDesignParameters? FindOptimalSolution(
+            int[] sprNumRange,
+            SpringMaterial[] matRange,
+            double[] dRange,
+            double[] doRange,
+            double[] hsRange,
+            double[] nfRange,
+            double[] p2hRange,
+            double minC,
+            double maxC)
+        {
+            double bestSprNum = double.MaxValue;
+            SpringDesignParameters? bestSolution = null;
+
+            SpringDesignParameters testParam = new SpringDesignParameters
+            {
+                EF_min = Parameters.EF_min,
+                EF_nor = Parameters.EF_nor,
+                EF_max = Parameters.EF_max,
+                ET_min = Parameters.ET_min,
+                ET_nor = Parameters.ET_nor,
+                ET_max = Parameters.ET_max,
+                PT_min = Parameters.PT_min,
+                PT_nor = Parameters.PT_nor,
+                PT_max = Parameters.PT_max,
+                PKG = Parameters.PKG,
+                LID_gap = Parameters.LID_gap,
+                IsGrindingEnds = Parameters.IsGrindingEnds
+            };
+
+            foreach (int sprNum in sprNumRange)
+            {
+                testParam.SPR_num = sprNum;
+
+                foreach (SpringMaterial mat in matRange)
+                {
+                    testParam.Material = mat;
+
+                    foreach (double d in dRange)
+                    {
+                        testParam.WireDiameter = d;
+                        testParam.IsGrindingEnds = (d >= 0.50);
+
+                        foreach (double doVal in doRange)
+                        {
+                            testParam.OuterDiameter = doVal;
+
+                            foreach (double hs in hsRange)
+                            {
+                                testParam.FreeLength = hs;
+
+                                foreach (double nf in nfRange)
+                                {
+                                    testParam.TotalCoils = nf;
+
+                                    foreach (double p2h in p2hRange)
+                                    {
+                                        testParam.P2h = p2h;
+
+                                        if (IsValidSolution(testParam, minC, maxC))
+                                        {
+                                            if (sprNum < bestSprNum)
+                                            {
+                                                bestSprNum = sprNum;
+                                                bestSolution = CloneParameters(testParam);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (bestSolution != null) break;
+            }
+
+            return bestSolution;
+        }
+
+        private bool IsValidSolution(SpringDesignParameters p, double minC = 4.0, double maxC = 12.0)
         {
             // 조건 0: 총권수(Nf)는 반드시 유효권수(Na)보다 커야 함 (물리적 한계 Nf >= Na + 1.0)
             if (p.TotalCoils < p.ActiveCoils + 1.0) return false;
@@ -2048,6 +2087,10 @@ namespace BOMManager.Modules.SpringDesigner.ViewModels
 
             // 조건 5: (TF_max / PKG) < (TF_min / PKG + 10)
             if (tfMaxPkg >= (tfMinPkg + 10.0)) return false;
+
+            // 조건 6: 스프링 지수 (c = 중심경/선경) 범위 제한 (minC <= c <= maxC)
+            double c = p.SpIdx;
+            if (c < minC || c > maxC) return false;
 
             return true;
         }
@@ -2174,6 +2217,21 @@ namespace BOMManager.Modules.SpringDesigner.ViewModels
             OnPropertyChanged(nameof(ForceMaxPassColor));
             OnPropertyChanged(nameof(SAloPassColor));
             OnPropertyChanged(nameof(FullCompPassColor));
+
+            // 제작성 / 양산성 / 비고 평가 프로퍼티 갱신
+            OnPropertyChanged(nameof(SpringIndex));
+            OnPropertyChanged(nameof(SpringIndexDisplayText));
+            OnPropertyChanged(nameof(SpringIndexLabelText));
+            OnPropertyChanged(nameof(ManufacturabilityRating));
+            OnPropertyChanged(nameof(MassProductivityRating));
+            OnPropertyChanged(nameof(ManufacturabilityRemark));
+            OnPropertyChanged(nameof(ManufacturabilitySummaryLine));
+            OnPropertyChanged(nameof(ManufacturabilityRemarkLine));
+            OnPropertyChanged(nameof(ManufacturabilityLine1));
+            OnPropertyChanged(nameof(ManufacturabilityLine2));
+            OnPropertyChanged(nameof(ManufacturabilityLine3));
+            OnPropertyChanged(nameof(ManufacturabilityFullText));
+            OnPropertyChanged(nameof(ManufacturabilityColor));
 
             OnPropertyChanged(nameof(IsGrindingEnds));
             OnPropertyChanged(nameof(GrindingEndsDisplayText));

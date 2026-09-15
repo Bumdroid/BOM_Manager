@@ -8,10 +8,11 @@
     <AssemblyName>Design_Automation_Portal</AssemblyName>
     <RootNamespace>BOMManager</RootNamespace>
     <StartupObject>BOMManager.App</StartupObject>
-    <Version>0.2.0</Version>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
-    <FileVersion>0.2.0.0</FileVersion>
-    <InformationalVersion>Alpha V0.2</InformationalVersion>
+    <Version>0.33.0</Version>
+    <AssemblyVersion>0.33.0.0</AssemblyVersion>
+    <FileVersion>0.33.0.0</FileVersion>
+    <InformationalVersion>Alpha V0.33</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>Design Automation Portal</Product>
     <Company>CAD Automation</Company>
     <ApplicationIcon>resources\app.ico</ApplicationIcon>
@@ -67,6 +68,12 @@
   <ItemGroup>
     <Resource Include="resources\Fonts\*.ttf" />
     <None Update="resources\**">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Templates\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="addin\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

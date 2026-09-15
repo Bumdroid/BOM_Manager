@@ -206,6 +206,57 @@ namespace BOMManager.Modules.SpringDesigner.Models
         // 허용 응력 salo = stor / sten
         public double SAlo => Sten <= 0 ? 0.0 : STor / Sten;
 
+        // 스프링 지수 (c) 기반 제작성 / 양산성 / 비고 평가
+        public string ManufacturabilityRating
+        {
+            get
+            {
+                double c = SpIdx;
+                if (c < 3.0) return "매우 어려움";
+                if (c < 4.0) return "어려움";
+                if (c < 6.0) return "양호";
+                if (c < 12.0) return "매우 양호";
+                return "가능";
+            }
+        }
+
+        public string MassProductivityRating
+        {
+            get
+            {
+                double c = SpIdx;
+                if (c < 3.0) return "불량률 증가";
+                if (c < 4.0) return "관리 필요";
+                if (c < 6.0) return "안정적";
+                if (c < 12.0) return "최적";
+                return "좌굴 검토 필요";
+            }
+        }
+
+        public string ManufacturabilityRemark
+        {
+            get
+            {
+                double c = SpIdx;
+                if (c < 3.0) return "특수 성형 필요";
+                if (c < 4.0) return "숙련 업체 가능";
+                if (c < 6.0) return "일반 권장";
+                if (c < 12.0) return "표준 설계 영역";
+                return "대경 스프링";
+            }
+        }
+
+        public string ManufacturabilityColor
+        {
+            get
+            {
+                double c = SpIdx;
+                if (c < 3.0) return "#D32F2F";
+                if (c < 4.0) return "#D97706";
+                return "#0044CC";
+            }
+        }
+
         // 재료 표시용 텍스트 변환
         public string MaterialDisplayName => Material switch
         {

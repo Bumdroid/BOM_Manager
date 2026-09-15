@@ -9,8 +9,54 @@ using SolidWorks.Interop.swconst;
 
 namespace BOMManager.Core
 {
+    public enum SolidWorksStatus
+    {
+        NotRunning,   // sldworks.exe 없음 (Red: SolidWorks 실행 필요)
+        Initializing, // sldworks.exe 실행 중이나 COM 준비 중 (Yellow: SolidWorks 실행중)
+        Ready         // COM 연결 완료 및 준비됨 (Green: 실행 가능)
+    }
+
     public class SwConnector : ISolidWorksService, IDisposable
     {
+        public static SolidWorksStatus CheckSolidWorksStatus()
+        {
+            try
+            {
+                var procs = System.Diagnostics.Process.GetProcessesByName("SLDWORKS");
+                if (procs.Length == 0)
+                {
+                    procs = System.Diagnostics.Process.GetProcessesByName("sldworks");
+                }
+
+                if (procs == null || procs.Length == 0)
+                {
+                    return SolidWorksStatus.NotRunning;
+                }
+
+                try
+                {
+                    object? swCandidate = Marshal.GetActiveObject("SldWorks.Application.29");
+                    if (swCandidate == null)
+                    {
+                        swCandidate = Marshal.GetActiveObject("SldWorks.Application");
+                    }
+                    if (swCandidate != null)
+                    {
+                        return SolidWorksStatus.Ready;
+                    }
+                }
+                catch
+                {
+                    return SolidWorksStatus.Initializing;
+                }
+
+                return SolidWorksStatus.Initializing;
+            }
+            catch
+            {
+                return SolidWorksStatus.NotRunning;
+            }
+        }
         private SldWorks? _swApp;
         private readonly List<CachedComponentRecord> _cachedCompRecords = new();
         private static string LogFile

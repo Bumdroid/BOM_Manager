@@ -461,64 +461,90 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
 
                                         <!-- 1행: Device Thickness | Min. | Nor. | Max. -->
                                         <Border Grid.Row="0" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
-                                            <TextBlock Text="Device Thickness" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Device Thickness" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="0" Grid.Column="1" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
-                                            <TextBlock Text="Min." FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Min." FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="0" Grid.Column="2" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
-                                            <TextBlock Text="Nor." FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Nor." FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="0" Grid.Column="3" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="5">
-                                            <TextBlock Text="Max." FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Max." FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
 
                                         <!-- 2행: Pin Force (g/Pin) | Min | Nor | Max 계산값 (회색 배경 #E6E8EC) -->
                                         <Border Grid.Row="1" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
-                                            <TextBlock Text="Pin Force (g/Pin)" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Pin Force (g/Pin)" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="1" Grid.Column="1" Background="#E6E8EC" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
-                                            <TextBlock Text="{Binding PinForce_min, StringFormat={}{0:F1}}" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding PinForce_min, StringFormat={}{0:F1}}" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="1" Grid.Column="2" Background="#E6E8EC" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
-                                            <TextBlock Text="{Binding PinForce_nor, StringFormat={}{0:F1}}" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding PinForce_nor, StringFormat={}{0:F1}}" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="1" Grid.Column="3" Background="#E6E8EC" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
-                                            <TextBlock Text="{Binding PinForce_max, StringFormat={}{0:F1}}" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding PinForce_max, StringFormat={}{0:F1}}" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
 
                                         <!-- 3행: Force | Min 통과여부 | Nor 통과여부 | Max 통과여부 -->
                                         <Border Grid.Row="2" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
-                                            <TextBlock Text="Force" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Force" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="2" Grid.Column="1" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
-                                            <TextBlock Text="{Binding ForceMinPassText}" Foreground="{Binding ForceMinPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ForceMinPassText}" FontSize="12" Foreground="{Binding ForceMinPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="2" Grid.Column="2" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="4">
-                                            <TextBlock Text="{Binding ForceNorPassText}" Foreground="{Binding ForceNorPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ForceNorPassText}" FontSize="12" Foreground="{Binding ForceNorPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="2" Grid.Column="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
-                                            <TextBlock Text="{Binding ForceMaxPassText}" Foreground="{Binding ForceMaxPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ForceMaxPassText}" FontSize="12" Foreground="{Binding ForceMaxPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
 
                                         <!-- 4행: 허용응력 | 허용응력 통과여부 (2,3,4열 통합) -->
                                         <Border Grid.Row="3" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
-                                            <TextBlock Text="허용응력" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="허용응력" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
                                         <Border Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
-                                            <TextBlock Text="{Binding SAloPassText}" Foreground="{Binding SAloPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding SAloPassText}" FontSize="12" Foreground="{Binding SAloPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
 
                                         <!-- 5행: 밀착고 | min device 통과여부 (2,3,4열 통합) -->
-                                        <Border Grid.Row="4" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="5">
-                                            <TextBlock Text="밀착고" FontSize="11" FontWeight="SemiBold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Border Grid.Row="4" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,1" Padding="5">
+                                            <TextBlock Text="밀착고" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
-                                        <Border Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,0" Padding="4">
-                                            <TextBlock Text="{Binding FullCompPassText}" Foreground="{Binding FullCompPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Border Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,1" Padding="4">
+                                            <TextBlock Text="{Binding FullCompPassText}" FontSize="12" Foreground="{Binding FullCompPassColor}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- 6행: 제작성 | 제작성/양산성/비고 (스프링 지수 c 기반 평가) -->
+                                        <Border Grid.Row="5" Grid.Column="0" Background="#FAFAFA" BorderBrush="#CCCCCC" BorderThickness="0,0,1,0" Padding="4,5">
+                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                <TextBlock Text="{Binding SpringIndexLabelText}" FontSize="12" FontWeight="Bold" Foreground="#000000" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="4~12 권장" FontSize="10" Foreground="#666666" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3" BorderBrush="#CCCCCC" BorderThickness="0,0,0,0" Padding="8,5">
+                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,0">
+                                                <!-- 1줄: 제작성 : ~~~~,  양산성 : ~~~~ -->
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,1">
+                                                    <TextBlock Text="제작성 : " FontSize="12" FontWeight="Bold" Foreground="#333333"/>
+                                                    <TextBlock Text="{Binding ManufacturabilityRating}" FontSize="12" FontWeight="Bold" Foreground="{Binding ManufacturabilityColor}"/>
+                                                    <TextBlock Text=",  " FontSize="12" FontWeight="Bold" Foreground="#333333"/>
+                                                    <TextBlock Text="양산성 : " FontSize="12" FontWeight="Bold" Foreground="#333333"/>
+                                                    <TextBlock Text="{Binding MassProductivityRating}" FontSize="12" FontWeight="Bold" Foreground="#111827"/>
+                                                </StackPanel>
+                                                <!-- 2줄: 비고 : ~~~~ -->
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,1">
+                                                    <TextBlock Text="비고 : " FontSize="12" FontWeight="SemiBold" Foreground="#666666"/>
+                                                    <TextBlock Text="{Binding ManufacturabilityRemark}" FontSize="12" FontWeight="SemiBold" Foreground="#333333"/>
+                                                </StackPanel>
+                                            </StackPanel>
                                         </Border>
                                     </Grid>
                                 </Border>

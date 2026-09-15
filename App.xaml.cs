@@ -39,6 +39,9 @@ namespace BOMManager
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+        [DllImport("shell32.dll", SetLastError = true)]
+        private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+
         private static void Log(string message)
         {
             try
@@ -123,6 +126,11 @@ namespace BOMManager
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            try
+            {
+                SetCurrentProcessExplicitAppUserModelID("ISC.DesignAutomationPortal.Alpha.App");
+            }
+            catch { }
             Log("BOM Manager WPF OnStartup 시작 (.exe Standalone)");
 
             bool createdNew;

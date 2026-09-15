@@ -31,7 +31,7 @@ SolidWorks 2021의 활성 어셈블리(`.sldasm`) 연동 및 Standalone 도면/�
 2. 단위 테스트(Unit Tests) 자동 실행 및 검증
 3. 실행 파일, 리소스, DLL, 애드인 번들링 (`dist_standalone/`)
 4. 설치 스크립트(`Install_DT_Design.bat`) 및 언인스톨 스크립트(`Uninstall_DT_Design.bat`) 통합
-5. 배포용 압축 패키지 생성 (`Dist/Design_Automation_Portal_Alpha_V0.2.zip`)
+5. 배포용 압축 패키지 생성 (`Dist/Design_Automation_Portal_Alpha_V0.3.zip`)
 
 ```bash
 build_all.bat

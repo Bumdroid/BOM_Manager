@@ -188,7 +188,7 @@
                             Margin="10,0,0,0"
                             VerticalAlignment="Center">
                         <TextBlock x:Name="txtPortalVersionBadge"
-                                   Text="Alpha V0.2"
+                                   Text="Alpha V0.33"
                                    FontSize="12"
                                    FontWeight="Bold"
                                    Foreground="#7C3AED"
@@ -343,15 +343,16 @@
                         </Border>
 
                         <!-- Status Pill Badge -->
-                        <Border HorizontalAlignment="Right" VerticalAlignment="Top"
+                        <Border x:Name="borderBomStatus"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
                                 Background="#ECFDF5"
                                 BorderBrush="#A7F3D0"
                                 BorderThickness="1"
                                 CornerRadius="12"
                                 Padding="10,4">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse Width="8" Height="8" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="실행 가능" FontSize="11" FontWeight="Bold" Foreground="#047857" VerticalAlignment="Center"/>
+                                <Ellipse x:Name="dotBomStatus" Width="8" Height="8" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="txtBomStatus" Text="실행 가능" FontSize="11" FontWeight="Bold" Foreground="#047857" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -361,7 +362,7 @@
                         <TextBlock Text="BOM Manager" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                             <Border Background="#DBEAFE" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
-                                <TextBlock Text="Alpha V0.2" FontSize="11" FontWeight="Bold" Foreground="#1D4ED8"/>
+                                <TextBlock Text="V0.00" FontSize="11" FontWeight="Bold" Foreground="#1D4ED8"/>
                             </Border>
                             <TextBlock Text="SolidWorks 2021 연동" FontSize="12" FontWeight="SemiBold" Foreground="#2563EB" VerticalAlignment="Center"/>
                         </StackPanel>
@@ -392,12 +393,13 @@
                     </WrapPanel>
 
                     <!-- Launch Action Button (Only button click launches app) -->
-                    <Button Grid.Row="4"
+                    <Button x:Name="btnLaunchBomAction"
+                            Grid.Row="4"
                             Style="{StaticResource LaunchActionBtnStyle}"
                             Click="BtnLaunchBomManager_Click">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="앱 실행하기" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
-                            <TextBlock Text=" ➔" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtBomAction" Text="앱 실행하기" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtBomActionArrow" Text=" ➔" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                 </Grid>
@@ -535,9 +537,9 @@
                         <TextBlock Text="스프링 설계" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                             <Border Background="#E0E7FF" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
-                                <TextBlock Text="V0.2" FontSize="11" FontWeight="Bold" Foreground="#3730A3"/>
+                                <TextBlock Text="V0.33" FontSize="11" FontWeight="Bold" Foreground="#3730A3"/>
                             </Border>
-                            <TextBlock Text="사양 계산 / 2D 도면작성" FontSize="12" FontWeight="SemiBold" Foreground="#4F46E5" VerticalAlignment="Center"/>
+                            <TextBlock Text="AutoCAD, Vault 2025 연동" FontSize="12" FontWeight="SemiBold" Foreground="#4F46E5" VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
 

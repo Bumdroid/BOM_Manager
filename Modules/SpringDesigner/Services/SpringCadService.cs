@@ -212,26 +212,119 @@ namespace BOMManager.Modules.SpringDesigner.Services
                 sbTmpl.AppendLine($"  \"SelectedTemplate\": \"{param.SelectedTemplate}\"");
                 sbTmpl.AppendLine("}");
                 File.WriteAllText(Path.Combine(dir, "template_option.json"), sbTmpl.ToString(), new UTF8Encoding(true));
+
+                // 5. 도면 템플릿 파일 자동 동기화 보장
+                EnsureTemplatesDeployed();
             }
             catch { }
         }
 
         /// <summary>
-        /// AutoCAD 플러그인 DLL 파일 경로 탐색 및 필요 시 AppData로 자동 복사 배포
+        /// 도면 생성에 필요한 DWG 템플릿 파일(2D Template_Rev00.dwg, NEW_Template_제작도면_R01.dwg)들을
+        /// %AppData%\Common_Draw 및 AutoCAD 플러그인 번들 디렉터리로 안전하게 사전 배포/동기화합니다.
+        /// </summary>
+        public static void EnsureTemplatesDeployed()
+        {
+            try
+            {
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+                string commonDrawDir = Path.Combine(appData, "Common_Draw");
+                if (!Directory.Exists(commonDrawDir)) Directory.CreateDirectory(commonDrawDir);
+
+                string bundleContentsTemplates = Path.Combine(appData, "Autodesk", "ApplicationPlugins", "Common_Draw.bundle", "Contents", "Templates");
+                if (!Directory.Exists(bundleContentsTemplates)) Directory.CreateDirectory(bundleContentsTemplates);
+
+                string[] templateFiles = new[] { "2D Template_Rev00.dwg", "NEW_Template_제작도면_R01.dwg", "temp.dwg", "Schematic_Spring.dwg" };
+
+                foreach (string tmpl in templateFiles)
+                {
+                    string targetAppDataPath = Path.Combine(commonDrawDir, tmpl);
+                    string targetBundlePath = Path.Combine(bundleContentsTemplates, tmpl);
+
+                    string[] sourceCandidates = new[]
+                    {
+                        Path.Combine(baseDir, "Templates", tmpl),
+                        Path.Combine(baseDir, tmpl),
+                        Path.Combine(@"c:\Temp\BOM_Manager\Templates", tmpl),
+                        Path.Combine(@"c:\Temp\Common_Draw\Templates", tmpl),
+                        Path.Combine(@"c:\Temp\Graveyard\Templates", tmpl),
+                        Path.Combine(@"C:\ISC_DT_Automation\Templates", tmpl),
+                        Path.Combine(@"C:\ISC_DT_Automation\addin\Templates", tmpl),
+                        Path.Combine(userProfile, "OneDrive - ISC", "DT2026", "새 폴더", "Common_Draw", "Templates", tmpl)
+                    };
+
+                    string foundSource = string.Empty;
+                    foreach (var src in sourceCandidates)
+                    {
+                        if (File.Exists(src))
+                        {
+                            foundSource = src;
+                            break;
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(foundSource))
+                    {
+                        try
+                        {
+                            if (!File.Exists(targetAppDataPath) || new FileInfo(foundSource).Length != new FileInfo(targetAppDataPath).Length)
+                            {
+                                if (File.Exists(targetAppDataPath))
+                                {
+                                    File.SetAttributes(targetAppDataPath, FileAttributes.Normal);
+                                }
+                                File.Copy(foundSource, targetAppDataPath, true);
+                                File.SetAttributes(targetAppDataPath, FileAttributes.Normal);
+                            }
+                        }
+                        catch { }
+
+                        try
+                        {
+                            if (!File.Exists(targetBundlePath) || new FileInfo(foundSource).Length != new FileInfo(targetBundlePath).Length)
+                            {
+                                if (File.Exists(targetBundlePath))
+                                {
+                                    File.SetAttributes(targetBundlePath, FileAttributes.Normal);
+                                }
+                                File.Copy(foundSource, targetBundlePath, true);
+                                File.SetAttributes(targetBundlePath, FileAttributes.Normal);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// AutoCAD 플러그인 DLL 파일 경로 탐색 및 AppData/ProgramData ApplicationPlugins로 다중 자동 복사 배포
         /// </summary>
         public static string GetOrDeployPluginDllPath()
         {
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            string bundleDir = Path.Combine(appData, "Autodesk", "ApplicationPlugins", "Common_Draw.bundle");
-            string bundleContents = Path.Combine(bundleDir, "Contents");
-            string installedDll = Path.Combine(bundleContents, "Common_Draw.dll");
+            string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+
+            string appDataBundleDir = Path.Combine(appData, "Autodesk", "ApplicationPlugins", "Common_Draw.bundle");
+            string appDataBundleContents = Path.Combine(appDataBundleDir, "Contents");
+            string appDataInstalledDll = Path.Combine(appDataBundleContents, "Common_Draw.dll");
+
+            string progDataBundleDir = Path.Combine(programData, "Autodesk", "ApplicationPlugins", "Common_Draw.bundle");
+            string progDataBundleContents = Path.Combine(progDataBundleDir, "Contents");
+            string progDataInstalledDll = Path.Combine(progDataBundleContents, "Common_Draw.dll");
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string[] candidatePaths = new[]
             {
                 Path.Combine(baseDir, "addin", "Common_Draw.dll"),
+                @"C:\DT_Design\addin\Common_Draw.dll",
                 @"C:\ISC_DT_Automation\addin\Common_Draw.dll",
                 Path.Combine(baseDir, "Common_Draw.dll"),
+                @"C:\DT_Design\Common_Draw.dll",
                 @"C:\ISC_DT_Automation\Common_Draw.dll",
                 @"c:\Temp\BOM_Manager\addin\Common_Draw.dll",
                 @"c:\Temp\common_draw\bin\Release\net8.0-windows\Common_Draw.dll"
@@ -249,23 +342,40 @@ namespace BOMManager.Modules.SpringDesigner.Services
 
             if (!string.IsNullOrEmpty(sourceDll))
             {
+                // 1. %APPDATA% 번들 배포
                 try
                 {
-                    if (!Directory.Exists(bundleContents)) Directory.CreateDirectory(bundleContents);
-                    File.Copy(sourceDll, installedDll, true);
+                    if (!Directory.Exists(appDataBundleContents)) Directory.CreateDirectory(appDataBundleContents);
+                    File.Copy(sourceDll, appDataInstalledDll, true);
 
                     string sourcePkg = Path.Combine(Path.GetDirectoryName(sourceDll) ?? "", "PackageContents.xml");
                     if (File.Exists(sourcePkg))
                     {
-                        File.Copy(sourcePkg, Path.Combine(bundleDir, "PackageContents.xml"), true);
+                        File.Copy(sourcePkg, Path.Combine(appDataBundleDir, "PackageContents.xml"), true);
                     }
                 }
                 catch { }
 
-                return installedDll;
+                // 2. %PROGRAMDATA% 번들 배포 (영문 고정 경로)
+                try
+                {
+                    if (!Directory.Exists(progDataBundleContents)) Directory.CreateDirectory(progDataBundleContents);
+                    File.Copy(sourceDll, progDataInstalledDll, true);
+
+                    string sourcePkg = Path.Combine(Path.GetDirectoryName(sourceDll) ?? "", "PackageContents.xml");
+                    if (File.Exists(sourcePkg))
+                    {
+                        File.Copy(sourcePkg, Path.Combine(progDataBundleDir, "PackageContents.xml"), true);
+                    }
+                }
+                catch { }
+
+                // 한글/특수문자가 없는 로컬 설치 경로 우선 반환, 없을 시 번들 경로 반환
+                return sourceDll;
             }
 
-            if (File.Exists(installedDll)) return installedDll;
+            if (File.Exists(progDataInstalledDll)) return progDataInstalledDll;
+            if (File.Exists(appDataInstalledDll)) return appDataInstalledDll;
             return string.Empty;
         }
 
@@ -302,7 +412,7 @@ namespace BOMManager.Modules.SpringDesigner.Services
                 string scrPath = Path.Combine(configDir, "auto_draw.scr");
                 try
                 {
-                    string safePath = (!string.IsNullOrEmpty(pluginDllPath) ? pluginDllPath : @"C:\ISC_DT_Automation\addin\Common_Draw.dll").Replace("\\", "/");
+                    string safePath = (!string.IsNullOrEmpty(pluginDllPath) ? pluginDllPath : @"C:\DT_Design\addin\Common_Draw.dll").Replace("\\", "/");
                     var sbScr = new StringBuilder();
                     sbScr.AppendLine("FILEDIA 0");
                     sbScr.AppendLine($"_.NETLOAD \"{safePath}\"");
@@ -375,12 +485,13 @@ namespace BOMManager.Modules.SpringDesigner.Services
 
                     Thread.Sleep(100);
 
-                    // 8. AutoCAD 활성 문서 확인 또는 신규 문서 생성
+                    // 8. AutoCAD 신규 도면 문서(새 창) 생성 및 활성화
                     dynamic app = acadApp;
                     dynamic? doc = null;
                     try
                     {
-                        doc = app.ActiveDocument;
+                        dynamic docs = app.Documents;
+                        doc = docs.Add(""); // [도면 해주세요] 클릭 시마다 항상 새로운 도면 창(New Drawing) 생성
                     }
                     catch { }
 
@@ -388,14 +499,9 @@ namespace BOMManager.Modules.SpringDesigner.Services
                     {
                         try
                         {
-                            dynamic docs = app.Documents;
-                            doc = docs.Add("");
+                            doc = app.ActiveDocument;
                         }
-                        catch (Exception docEx)
-                        {
-                            message = $"AutoCAD 도면 문서를 활성화할 수 없습니다: {docEx.Message}";
-                            return false;
-                        }
+                        catch { }
                     }
 
                     if (doc == null)
@@ -405,8 +511,10 @@ namespace BOMManager.Modules.SpringDesigner.Services
                     }
 
                     // 9. LISP 기반 동적 NETLOAD + AUTODRAW_SPRING 일괄 실행
-                    string dllSafePath = (!string.IsNullOrEmpty(pluginDllPath) ? pluginDllPath : @"C:\ISC_DT_Automation\addin\Common_Draw.dll").Replace("\\", "/");
-                    string lispCommand = $"\\x1B\\x1B(progn (setvar \"SECURELOAD\" 0) (setvar \"FILEDIA\" 0) (command \"_.netload\" \"{dllSafePath}\") (setvar \"FILEDIA\" 1) (if c:AUTODRAW_SPRING (c:AUTODRAW_SPRING) (command \"AUTODRAW_SPRING\")) (princ))\n";
+                    // 이미 어셈블리가 로드되어 있거나 c:AUTODRAW_SPRING / c:COMMON_DRAW 명령어가 있으면 _.netload를 생략하여
+                    // .NET 8 / AutoCAD 2025 AssemblyLoadContext 중복 로드 예외(Assembly with same name is already loaded)를 완벽하게 방지합니다.
+                    string dllSafePath = (!string.IsNullOrEmpty(pluginDllPath) ? pluginDllPath : @"C:\DT_Design\addin\Common_Draw.dll").Replace("\\", "/");
+                    string lispCommand = $"(progn (vl-load-com) (setvar \"SECURELOAD\" 0) (setvar \"FILEDIA\" 0) (if (not (or c:AUTODRAW_SPRING c:COMMON_DRAW)) (vl-catch-all-apply '(lambda () (command \"_.netload\" \"{dllSafePath}\")))) (setvar \"FILEDIA\" 1) (if c:AUTODRAW_SPRING (c:AUTODRAW_SPRING) (vl-catch-all-apply '(lambda () (command \"AUTODRAW_SPRING\")))) (princ))\n";
 
                     bool commandSent = false;
                     string lastError = "";
@@ -415,6 +523,7 @@ namespace BOMManager.Modules.SpringDesigner.Services
                     {
                         try
                         {
+                            try { doc.SendCommand("\u001b\u001b"); } catch { }
                             doc.SendCommand(lispCommand);
                             commandSent = true;
                             break;
@@ -432,7 +541,8 @@ namespace BOMManager.Modules.SpringDesigner.Services
                         try
                         {
                             string safeScr = scrPath.Replace("\\", "/");
-                            doc.SendCommand($"\x1B\x1B_.SCRIPT \"{safeScr}\"\n");
+                            try { doc.SendCommand("\u001b\u001b"); } catch { }
+                            doc.SendCommand($"_.SCRIPT \"{safeScr}\"\n");
                             commandSent = true;
                         }
                         catch (Exception scrEx)

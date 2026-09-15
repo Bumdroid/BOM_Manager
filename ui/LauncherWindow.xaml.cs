@@ -149,8 +149,8 @@ namespace BOMManager.UI
                     Icon = iconBmp;
                 }
 
-                // 2. In-App Classic Pepe Logo for BOM App Tile
-                string? logoPath = FindResourceFile("logo.png") ?? FindResourceFile("mainicon_32.png");
+                // 2. In-App Logo for BOM App Tile (Emerald Green BOM Sheet Icon)
+                string? logoPath = FindResourceFile("bom_icon.png") ?? FindResourceFile("logo.png") ?? FindResourceFile("mainicon_32.png");
                 if (logoPath != null && File.Exists(logoPath))
                 {
                     var bmp = new BitmapImage();
@@ -162,8 +162,8 @@ namespace BOMManager.UI
                     imgBomAppLogo.Source = bmp;
                 }
 
-                // 3. Green CAD Pepe Icon for 제작도 V0.0
-                string? dwgLogoPath = FindResourceFile("pepe_cad_icon_green.jpg") ?? FindResourceFile("pepe_cad_icon_cyan.jpg");
+                // 3. Green CAD Drawing Sheet Icon for 제작도 V0.0
+                string? dwgLogoPath = FindResourceFile("drawing_icon.png") ?? FindResourceFile("pepe_cad_icon_green.jpg") ?? FindResourceFile("pepe_cad_icon_cyan.jpg");
                 if (dwgLogoPath != null && File.Exists(dwgLogoPath))
                 {
                     var dwgBmp = new BitmapImage();
@@ -256,15 +256,76 @@ namespace BOMManager.UI
         {
             MessageBox.Show(
                 this,
-                "📐 [제작도 V0.0] 모듈 안내:\n\n" +
-                "AutoCAD 2025 기반 가공/제작도 도면 자동 생성 및 일괄 출력 기능은 현재 개발 중입니다.\n\n" +
-                "추후 정식 릴리즈 시 런처에서 원클릭으로 가공 도면 생성이 즉시 실행됩니다.",
+                "모듈 안내 : 아직 시작도 못함",
                 "제작도 V0.0 (AutoCAD 2025)",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
 
         public void UpdateCadStatus()
+        {
+            UpdateSolidWorksStatus();
+            UpdateAutoCadStatus();
+        }
+
+        private void UpdateSolidWorksStatus()
+        {
+            try
+            {
+                if (_isClosing) return;
+
+                var swStatus = _mockMode ? SolidWorksStatus.Ready : SwConnector.CheckSolidWorksStatus();
+
+                if (swStatus == SolidWorksStatus.Ready)
+                {
+                    // 1. 실행 가능 (Green #10B981) & 활성화 (#2563EB)
+                    borderBomStatus.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5"));
+                    borderBomStatus.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A7F3D0"));
+                    dotBomStatus.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981"));
+                    txtBomStatus.Text = "실행 가능";
+                    txtBomStatus.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#047857"));
+
+                    btnLaunchBomAction.IsEnabled = true;
+                    btnLaunchBomAction.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB"));
+                    txtBomAction.Foreground = Brushes.White;
+                    txtBomActionArrow.Foreground = Brushes.White;
+                    btnLaunchBomAction.ToolTip = "BOM Manager 실행 (SolidWorks 2021 연동 준비 완료)";
+                }
+                else if (swStatus == SolidWorksStatus.Initializing)
+                {
+                    // 2. SolidWorks 2021 실행중 (Yellow #F59E0B) & 초기화 대기
+                    borderBomStatus.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFBEB"));
+                    borderBomStatus.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FDE68A"));
+                    dotBomStatus.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                    txtBomStatus.Text = "SolidWorks 2021 실행중";
+                    txtBomStatus.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#B45309"));
+
+                    btnLaunchBomAction.IsEnabled = false;
+                    btnLaunchBomAction.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"));
+                    txtBomAction.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+                    txtBomActionArrow.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+                    btnLaunchBomAction.ToolTip = "SolidWorks 2021 프로그램이 로딩 중입니다. 잠시 후 '실행 가능'으로 자동 전환됩니다.";
+                }
+                else
+                {
+                    // 3. SolidWorks 2021 미연결 (Red #EF4444) & 비활성화 회색 (#E2E8F0)
+                    borderBomStatus.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEF2F2"));
+                    borderBomStatus.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FECACA"));
+                    dotBomStatus.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                    txtBomStatus.Text = "SolidWorks 2021 미연결";
+                    txtBomStatus.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#B91C1C"));
+
+                    btnLaunchBomAction.IsEnabled = false;
+                    btnLaunchBomAction.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"));
+                    txtBomAction.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+                    txtBomActionArrow.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+                    btnLaunchBomAction.ToolTip = "SolidWorks 2021이 실행되어 있지 않습니다. SolidWorks 2021을 먼저 실행해 주세요.";
+                }
+            }
+            catch { }
+        }
+
+        private void UpdateAutoCadStatus()
         {
             try
             {

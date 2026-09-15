@@ -68,7 +68,30 @@ namespace BOMManager.Core
             {
                 return Stage.CompareTo(other.Stage);
             }
+            if (IsEquivalentTo(other)) return 0;
             return NumericVersion.CompareTo(other.NumericVersion);
+        }
+
+        /// <summary>
+        /// 0.31/0.32/0.33과 0.3.1/0.3.2/0.3.3 등 표기 방식의 차이로 발생할 수 있는 동등성을 판별합니다.
+        /// </summary>
+        public bool IsEquivalentTo(AppVersion? other)
+        {
+            if (other == null) return false;
+            if (Stage != other.Stage) return false;
+            if (NumericVersion.Equals(other.NumericVersion)) return true;
+
+            // 0.31 / 0.32 / 0.33 표기 호환성 보장
+            if (NumericVersion.Major == other.NumericVersion.Major)
+            {
+                if (NumericVersion.Minor == 31 && other.NumericVersion.Minor == 3 && other.NumericVersion.Build == 1) return true;
+                if (NumericVersion.Minor == 3 && NumericVersion.Build == 1 && other.NumericVersion.Minor == 31) return true;
+                if (NumericVersion.Minor == 32 && other.NumericVersion.Minor == 3 && other.NumericVersion.Build == 2) return true;
+                if (NumericVersion.Minor == 3 && NumericVersion.Build == 2 && other.NumericVersion.Minor == 32) return true;
+                if (NumericVersion.Minor == 33 && other.NumericVersion.Minor == 3 && other.NumericVersion.Build == 3) return true;
+                if (NumericVersion.Minor == 3 && NumericVersion.Build == 3 && other.NumericVersion.Minor == 33) return true;
+            }
+            return false;
         }
 
         public override bool Equals(object? obj) => obj is AppVersion other && Equals(other);
@@ -76,7 +99,7 @@ namespace BOMManager.Core
         public bool Equals(AppVersion? other)
         {
             if (other == null) return false;
-            return Stage == other.Stage && NumericVersion.Equals(other.NumericVersion);
+            return Stage == other.Stage && (NumericVersion.Equals(other.NumericVersion) || IsEquivalentTo(other));
         }
 
         public override int GetHashCode() => (Stage, NumericVersion).GetHashCode();
@@ -153,7 +176,7 @@ namespace BOMManager.Core
         private static AppVersion? _currentAppVersion;
 
         /// <summary>
-        /// 현재 실행 중인 어셈블리의 버전 정보를 동적으로 추출하여 반환합니다. (기본값: Alpha V0.2)
+        /// 현재 실행 중인 어셈블리의 버전 정보를 동적으로 추출하여 반환합니다. (기본값: Alpha V0.33)
         /// </summary>
         public static AppVersion CurrentAppVersion
         {
@@ -195,17 +218,21 @@ namespace BOMManager.Core
                 }
             }
             catch { }
-            return new AppVersion(ReleaseStage.Alpha, 0, 2, 0, 0);
+            return new AppVersion(ReleaseStage.Alpha, 0, 33, 0, 0);
         }
 
         /// <summary>
-        /// 'Alpha V0.1', 'Beta V1.0', 'V0.1.0', '0.1.0' 형식의 문자열을 AppVersion으로 파싱합니다.
+        /// 'Alpha V0.1', 'Beta V1.0', 'V0.1.0', '0.1.0', 'Alpha V0.31+hash' 형식의 문자열을 AppVersion으로 파싱합니다.
         /// </summary>
         public static AppVersion? ParseVersionString(string verText)
         {
             if (string.IsNullOrWhiteSpace(verText)) return null;
 
-            var match = Regex.Match(verText.Trim(), @"^(?:(?<stage>Alpha|Beta)[_\s-]?)?(?:v|V)?(?<ver>\d+(?:\.\d+)*)$", RegexOptions.IgnoreCase);
+            // Git 커밋 해시 또는 빌드 메타데이터(+...) 제거
+            int plusIdx = verText.IndexOf('+');
+            string cleanText = plusIdx >= 0 ? verText.Substring(0, plusIdx).Trim() : verText.Trim();
+
+            var match = Regex.Match(cleanText, @"^(?:(?<stage>Alpha|Beta)[_\s-]?)?(?:v|V)?(?<ver>\d+(?:\.\d+)*)$", RegexOptions.IgnoreCase);
             if (!match.Success) return null;
 
             string stageStr = match.Groups["stage"].Value;
@@ -237,7 +264,7 @@ namespace BOMManager.Core
         // Design_Automation_Portal_Alpha_V0.0.zip, Design_Automation_Portal_Beta_V0.1.zip, Design_Automation_Portal_V1.0.zip
         // BOM_Manager_Alpha_V0.0.zip, BOM_Manager_Beta_V0.0.zip, BOM_Manager_V1.0.zip
         private static readonly Regex VersionPattern = new Regex(
-            @"^(?:Design_Automation_Portal|BOM_Manager)_(?:(?<stage>Alpha|Beta)[_\s-]?)?(?:v|V)?(?<ver>\d+(?:\.\d+)*)\.zip$",
+            @"^(?:Design_Automation_Portal|BOM_Manager)_(?:(?<stage>Alpha|Beta)[_\s-]?)?(?:v|V)?(?<ver>\d+(?:\.\d+)*)(?:\+[0-9a-zA-Z\.-]+)?\.zip$",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         /// <summary>
@@ -300,7 +327,7 @@ namespace BOMManager.Core
                     FileName = f,
                     Version = ExtractAppVersion(f)
                 })
-                .Where(x => x.Version != null && x.Version > currentVersion)
+                .Where(x => x.Version != null && x.Version > currentVersion && !x.Version.IsEquivalentTo(currentVersion))
                 .OrderByDescending(x => x.Version)
                 .Select(x => new UpdateCandidate
                 {

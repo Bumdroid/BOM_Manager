@@ -1122,19 +1122,61 @@ namespace BOMManager.Tests
                 double expectedFullComp = (1.1 * 5.0) + 1.1 - 0.55;
                 if (Math.Abs(sp.FullComp - expectedFullComp) > 1e-4) throw new Exception($"FullComp calculation failed: expected {expectedFullComp}, got {sp.FullComp}");
 
-                // 5. 스프링 상수 K 및 P2 하중
+                // 5. 스프링 지수 (c = 중심경/선경) 및 제작성/양산성/비고 평가 검증
+                var spTest = new BOMManager.Modules.SpringDesigner.Models.SpringDesignParameters();
+                
+                // Case 1: 4 <= c < 6 (Do = 6.0, d = 1.1 => Dc = 4.9, c = 4.9 / 1.1 = 4.45)
+                spTest.WireDiameter = 1.1;
+                spTest.OuterDiameter = 6.0;
+                if (Math.Abs(spTest.SpIdx - (4.9 / 1.1)) > 1e-4) throw new Exception($"SpIdx calculation failed: expected {4.9 / 1.1}, got {spTest.SpIdx}");
+                if (spTest.ManufacturabilityRating != "양호" || spTest.MassProductivityRating != "안정적" || spTest.ManufacturabilityRemark != "일반 권장")
+                    throw new Exception($"Case 1 (4<=c<6) failed: {spTest.ManufacturabilityRating}, {spTest.MassProductivityRating}, {spTest.ManufacturabilityRemark}");
+
+                // Case 2: c < 3 (Do = 3.0, d = 1.0 => Dc = 2.0, c = 2.0)
+                spTest.WireDiameter = 1.0;
+                spTest.OuterDiameter = 3.0;
+                if (spTest.ManufacturabilityRating != "매우 어려움" || spTest.MassProductivityRating != "불량률 증가" || spTest.ManufacturabilityRemark != "특수 성형 필요")
+                    throw new Exception($"Case 2 (c<3) failed: {spTest.ManufacturabilityRating}, {spTest.MassProductivityRating}, {spTest.ManufacturabilityRemark}");
+
+                // Case 3: 3 <= c < 4 (Do = 4.5, d = 1.0 => Dc = 3.5, c = 3.5)
+                spTest.WireDiameter = 1.0;
+                spTest.OuterDiameter = 4.5;
+                if (spTest.ManufacturabilityRating != "어려움" || spTest.MassProductivityRating != "관리 필요" || spTest.ManufacturabilityRemark != "숙련 업체 가능")
+                    throw new Exception($"Case 3 (3<=c<4) failed: {spTest.ManufacturabilityRating}, {spTest.MassProductivityRating}, {spTest.ManufacturabilityRemark}");
+
+                // Case 4: 6 <= c < 12 (Do = 8.0, d = 1.0 => Dc = 7.0, c = 7.0)
+                spTest.WireDiameter = 1.0;
+                spTest.OuterDiameter = 8.0;
+                if (spTest.ManufacturabilityRating != "매우 양호" || spTest.MassProductivityRating != "최적" || spTest.ManufacturabilityRemark != "표준 설계 영역")
+                    throw new Exception($"Case 4 (6<=c<12) failed: {spTest.ManufacturabilityRating}, {spTest.MassProductivityRating}, {spTest.ManufacturabilityRemark}");
+
+                // Case 5: c >= 12 (Do = 15.0, d = 1.0 => Dc = 14.0, c = 14.0)
+                spTest.WireDiameter = 1.0;
+                spTest.OuterDiameter = 15.0;
+                if (spTest.ManufacturabilityRating != "가능" || spTest.MassProductivityRating != "좌굴 검토 필요" || spTest.ManufacturabilityRemark != "대경 스프링")
+                    throw new Exception($"Case 5 (c>=12) failed: {spTest.ManufacturabilityRating}, {spTest.MassProductivityRating}, {spTest.ManufacturabilityRemark}");
+
+                // 신작 최적화 2단계 우선순위 (1단계 c>=8, 2단계 c>=4) 허용 여부 체크
+                bool isStage1_Valid = 8.5 >= 8.0 && 8.5 <= 12.0;
+                bool isStage1_FallbackNeeded = 5.5 < 8.0;
+                bool isStage2_Valid = 5.5 >= 4.0 && 5.5 <= 12.0;
+                bool isInvalidUnder4 = 3.5 < 4.0;
+                if (!isStage1_Valid || !isStage1_FallbackNeeded || !isStage2_Valid || !isInvalidUnder4)
+                    throw new Exception("2-stage spring index optimization check logic error");
+
+                // 6. 스프링 상수 K 및 P2 하중
                 if (sp.SpringConstantK <= 0) throw new Exception("SpringConstantK must be > 0");
                 if (sp.P2 <= 0) throw new Exception("P2 must be > 0");
                 if (sp.SAlo <= 0) throw new Exception("SAlo must be > 0");
 
-                // 6. Socket Total Force
+                // 7. Socket Total Force
                 if (sp.TF_min <= 0 || sp.TF_nor <= 0 || sp.TF_max <= 0) throw new Exception("Total force values must be > 0");
 
-                // 7. Dynamic Spring Icon generation
+                // 8. Dynamic Spring Icon generation
                 var icon = BOMManager.Modules.SpringDesigner.Services.SpringCadService.CreateSpringIconBitmap(24);
                 if (icon == null) throw new Exception("CreateSpringIconBitmap returned null");
 
-                // 8. JSON Helper roundtrip
+                // 9. JSON Helper roundtrip
                 string sampleJson = "{\r\n  \"VaultServer\": \"192.168.150.105\",\r\n  \"EF_min\": 20.5,\r\n  \"SPR_num\": 32,\r\n  \"Auto\": true\r\n}";
                 string sVal = BOMManager.Modules.SpringDesigner.Services.SpringConfigService.GetJsonString(sampleJson, "VaultServer");
                 double dVal = BOMManager.Modules.SpringDesigner.Services.SpringConfigService.GetJsonDouble(sampleJson, "EF_min");
@@ -1146,7 +1188,7 @@ namespace BOMManager.Tests
                 if (iVal != 32) throw new Exception($"GetJsonInt failed: expected 32, got {iVal}");
                 if (!bVal) throw new Exception("GetJsonBool failed: expected true");
 
-                Console.WriteLine(" [PASS] Test 25: 스프링 설계 역학 공식(선경/외경/밀착고/허용응력/Socket하중), 아이콘 생성 및 JSON 설정 파서 검증 성공");
+                Console.WriteLine(" [PASS] Test 25: 스프링 지수(c) 및 제작성/양산성 평가, 역학 공식, 아이콘 생성 및 JSON 파서 검증 성공");
                 passed++;
             }
             catch (Exception ex)
@@ -1235,28 +1277,54 @@ namespace BOMManager.Tests
                 var vAlpha01 = VaultUpdateService.ParseVersionString("Alpha V0.1");
                 var vAlpha02 = VaultUpdateService.ParseVersionString("Alpha V0.2");
                 var vAlpha03 = VaultUpdateService.ParseVersionString("Alpha V0.3");
+                var vAlpha031 = VaultUpdateService.ParseVersionString("Alpha V0.31");
+                var vAlpha032 = VaultUpdateService.ParseVersionString("Alpha V0.32");
+                var vAlpha033 = VaultUpdateService.ParseVersionString("Alpha V0.33");
+                var vAlpha033WithHash = VaultUpdateService.ParseVersionString("Alpha V0.33+bccff20422fb256990879bd21e9ae956ecaa6337");
+                var vAlpha033FromAltNotation = new AppVersion(ReleaseStage.Alpha, new Version(0, 33, 0, 0));
                 var vBeta01 = VaultUpdateService.ParseVersionString("Beta V0.1");
                 var vRelease10 = VaultUpdateService.ParseVersionString("V1.0");
 
-                if (vAlpha01 == null || vAlpha02 == null || vAlpha03 == null || vBeta01 == null || vRelease10 == null)
+                if (vAlpha01 == null || vAlpha02 == null || vAlpha03 == null || vAlpha031 == null || vAlpha032 == null || vAlpha033 == null || vAlpha033WithHash == null || vBeta01 == null || vRelease10 == null)
                 {
                     throw new Exception("Version string parsing failed for one or more test versions.");
                 }
 
+                if (vAlpha033WithHash.DisplayString != "Alpha V0.33")
+                {
+                    throw new Exception($"InformationalVersion commit hash strip failed: {vAlpha033WithHash.DisplayString}");
+                }
+
+                if (!vAlpha033.Equals(vAlpha033FromAltNotation))
+                {
+                    throw new Exception("Equivalence between 0.33 and 0.33.0.0 failed");
+                }
+
                 if (!(vAlpha01 < vAlpha02)) throw new Exception($"Expected Alpha V0.1 < Alpha V0.2, but got {vAlpha01} vs {vAlpha02}");
                 if (!(vAlpha02 < vAlpha03)) throw new Exception($"Expected Alpha V0.2 < Alpha V0.3, but got {vAlpha02} vs {vAlpha03}");
-                if (!(vAlpha03 < vBeta01)) throw new Exception($"Expected Alpha V0.3 < Beta V0.1, but got {vAlpha03} vs {vBeta01}");
+                if (!(vAlpha03 < vAlpha031)) throw new Exception($"Expected Alpha V0.3 < Alpha V0.31, but got {vAlpha03} vs {vAlpha031}");
+                if (!(vAlpha031 < vAlpha032)) throw new Exception($"Expected Alpha V0.31 < Alpha V0.32, but got {vAlpha031} vs {vAlpha032}");
+                if (!(vAlpha032 < vAlpha033)) throw new Exception($"Expected Alpha V0.32 < Alpha V0.33, but got {vAlpha032} vs {vAlpha033}");
+                if (!(vAlpha033 < vBeta01)) throw new Exception($"Expected Alpha V0.33 < Beta V0.1, but got {vAlpha033} vs {vBeta01}");
                 if (!(vBeta01 < vRelease10)) throw new Exception($"Expected Beta V0.1 < V1.0, but got {vBeta01} vs {vRelease10}");
 
                 // 2. 파일명에서 버전 추출
                 var extracted01 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.1.zip");
                 var extracted02 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.2.zip");
                 var extracted03 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.3.zip");
+                var extracted031 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.31.zip");
+                var extracted032 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.32.zip");
+                var extracted033 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.33.zip");
+                var extracted033WithHash = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.33+git12345.zip");
                 var extractedLegacy = VaultUpdateService.ExtractAppVersion("BOM_Manager_Alpha_V0.1.zip");
 
                 if (extracted01 == null || extracted01.DisplayString != "Alpha V0.1") throw new Exception($"Extracted {extracted01?.DisplayString} != Alpha V0.1");
                 if (extracted02 == null || extracted02.DisplayString != "Alpha V0.2") throw new Exception($"Extracted {extracted02?.DisplayString} != Alpha V0.2");
                 if (extracted03 == null || extracted03.DisplayString != "Alpha V0.3") throw new Exception($"Extracted {extracted03?.DisplayString} != Alpha V0.3");
+                if (extracted031 == null || extracted031.DisplayString != "Alpha V0.31") throw new Exception($"Extracted {extracted031?.DisplayString} != Alpha V0.31");
+                if (extracted032 == null || extracted032.DisplayString != "Alpha V0.32") throw new Exception($"Extracted {extracted032?.DisplayString} != Alpha V0.32");
+                if (extracted033 == null || extracted033.DisplayString != "Alpha V0.33") throw new Exception($"Extracted {extracted033?.DisplayString} != Alpha V0.33");
+                if (extracted033WithHash == null || extracted033WithHash.DisplayString != "Alpha V0.33") throw new Exception($"Extracted {extracted033WithHash?.DisplayString} != Alpha V0.33");
                 if (extractedLegacy == null || extractedLegacy.DisplayString != "Alpha V0.1") throw new Exception($"Extracted {extractedLegacy?.DisplayString} != Alpha V0.1");
 
                 // 3. 최신 후보 선출 검증
@@ -1265,21 +1333,31 @@ namespace BOMManager.Tests
                     "Design_Automation_Portal_Alpha_V0.0.zip",
                     "Design_Automation_Portal_Alpha_V0.1.zip",
                     "Design_Automation_Portal_Alpha_V0.2.zip",
-                    "Design_Automation_Portal_Alpha_V0.3.zip"
+                    "Design_Automation_Portal_Alpha_V0.3.zip",
+                    "Design_Automation_Portal_Alpha_V0.31.zip",
+                    "Design_Automation_Portal_Alpha_V0.32.zip",
+                    "Design_Automation_Portal_Alpha_V0.33.zip"
                 };
 
-                // 현재 버전이 Alpha V0.2일 때 -> Alpha V0.3이 선출되어야 함
-                var candidateFor02 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha02);
-                if (candidateFor02 == null || candidateFor02.Version.DisplayString != "Alpha V0.3")
+                // 현재 버전이 Alpha V0.32일 때 -> Alpha V0.33이 선출되어야 함
+                var candidateFor032 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha032);
+                if (candidateFor032 == null || candidateFor032.Version.DisplayString != "Alpha V0.33")
                 {
-                    throw new Exception($"Expected update candidate Alpha V0.3 for current version Alpha V0.2, got {candidateFor02?.Version.DisplayString}");
+                    throw new Exception($"Expected update candidate Alpha V0.33 for current version Alpha V0.32, got {candidateFor032?.Version.DisplayString}");
                 }
 
-                // 현재 버전이 Alpha V0.3일 때 -> 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
-                var candidateFor03 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha03);
-                if (candidateFor03 != null)
+                // 현재 버전이 Alpha V0.33일 때 -> 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
+                var candidateFor033 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha033);
+                if (candidateFor033 != null)
                 {
-                    throw new Exception($"Expected NO update candidate for current version Alpha V0.3, but got {candidateFor03.Version.DisplayString}");
+                    throw new Exception($"Expected NO update candidate for current version Alpha V0.33, but got {candidateFor033.Version.DisplayString}");
+                }
+
+                // 현재 버전이 0.33.0.0일 때도 -> Alpha V0.33과 완벽 일치하여 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
+                var candidateFor033Alt = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, new AppVersion(ReleaseStage.Alpha, new Version(0, 33, 0, 0)));
+                if (candidateFor033Alt != null)
+                {
+                    throw new Exception($"Expected NO update candidate for current version 0.33.0.0 against Alpha V0.33.zip, but got {candidateFor033Alt.Version.DisplayString}");
                 }
 
                 // 4. 파워쉘 자가 교체 스크립트 생성 검증 (한글 경로 및 괄호 포함)
@@ -1292,7 +1370,7 @@ namespace BOMManager.Tests
                     throw new Exception("Generated updater script is missing required parameters or robocopy logic.");
                 }
 
-                Console.WriteLine(" [PASS] Test 27: Vault 자동 업데이트 버전 비교(Alpha V0.2 < V0.3), 무한반복 방지 및 파워쉘 스크립트 생성 검증 성공");
+                Console.WriteLine(" [PASS] Test 27: Vault 자동 업데이트 버전 비교(Alpha V0.3 < V0.33), 무한반복 방지 및 파워쉘 스크립트 생성 검증 성공");
                 passed++;
             }
             catch (Exception ex)

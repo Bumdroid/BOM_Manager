@@ -24,6 +24,7 @@
         <Command Local="COMMON_DRAW" Global="COMMON_DRAW" />
         <Command Local="COMMON_DRAW_UI" Global="COMMON_DRAW_UI" />
         <Command Local="SHOW_RIBBON" Global="SHOW_RIBBON" />
+        <Command Local="AUTODRAW_SPRING" Global="AUTODRAW_SPRING" />
       </Commands>
     </ComponentEntry>
   </Components>

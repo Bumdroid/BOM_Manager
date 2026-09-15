@@ -150,8 +150,8 @@ namespace BOMManager.UI
                     Icon = iconBmp;
                 }
 
-                // 2. In-App Classic Pepe BOM Logo
-                string? logoPath = FindResourceFile("logo.png") ?? FindResourceFile("mainicon_32.png");
+                // 2. In-App BOM Logo (Emerald Green BOM Sheet Icon)
+                string? logoPath = FindResourceFile("bom_icon.png") ?? FindResourceFile("logo.png") ?? FindResourceFile("mainicon_32.png");
                 if (logoPath != null && File.Exists(logoPath))
                 {
                     var bmp = new BitmapImage();

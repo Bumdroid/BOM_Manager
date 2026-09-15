@@ -5,9 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:BOMManager.Modules.SpringDesigner.Views"
         mc:Ignorable="d"
-        Title="스프링 설계 자동화 V0.2" 
-        Width="495" Height="900"
-        MinWidth="470" MinHeight="580"
+        Title="스프링 설계 자동화 V0.33" 
+        Width="540" Height="930"
+        MinWidth="500" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="#FFFFFF"
         FontFamily="pack://application:,,,/resources/Fonts/#Pretendard, ./resources/Fonts/#Pretendard, Pretendard, Malgun Gothic, Segoe UI, sans-serif">
