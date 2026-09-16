@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:BOMManager.Modules.SpringDesigner.Views"
         mc:Ignorable="d"
-        Title="스프링 설계 자동화 V0.33" 
+        Title="스프링 설계 자동화 V0.34" 
         Width="540" Height="930"
         MinWidth="500" MinHeight="600"
         WindowStartupLocation="CenterScreen"

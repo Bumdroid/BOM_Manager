@@ -188,7 +188,7 @@
                             Margin="10,0,0,0"
                             VerticalAlignment="Center">
                         <TextBlock x:Name="txtPortalVersionBadge"
-                                   Text="Alpha V0.33"
+                                   Text="Alpha V0.34"
                                    FontSize="12"
                                    FontWeight="Bold"
                                    Foreground="#7C3AED"
@@ -537,7 +537,7 @@
                         <TextBlock Text="스프링 설계" FontSize="20" FontWeight="Bold" Foreground="#0F172A"/>
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                             <Border Background="#E0E7FF" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
-                                <TextBlock Text="V0.33" FontSize="11" FontWeight="Bold" Foreground="#3730A3"/>
+                                <TextBlock Text="V0.34" FontSize="11" FontWeight="Bold" Foreground="#3730A3"/>
                             </Border>
                             <TextBlock Text="AutoCAD, Vault 2025 연동" FontSize="12" FontWeight="SemiBold" Foreground="#4F46E5" VerticalAlignment="Center"/>
                         </StackPanel>

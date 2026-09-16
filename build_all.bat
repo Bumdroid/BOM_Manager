@@ -52,7 +52,7 @@ copy /y "dist_standalone\Design_Automation_Portal.exe" "." > nul
 
 echo.
 echo [4/4] Creating Vault Release Package in Dist\ (Zip and Install/Uninstall bat)...
-powershell -NoProfile -Command "Compress-Archive -Path 'dist_standalone\*' -DestinationPath 'Dist\Design_Automation_Portal_Alpha_V0.33.zip' -CompressionLevel Optimal -Force"
+powershell -NoProfile -Command "Compress-Archive -Path 'dist_standalone\*' -DestinationPath 'Dist\Design_Automation_Portal_Alpha_V0.34.zip' -CompressionLevel Optimal -Force"
 
 if exist "Install_DT_Design.bat" copy /y "Install_DT_Design.bat" "Dist\" > nul
 if exist "Uninstall_DT_Design.bat" copy /y "Uninstall_DT_Design.bat" "Dist\" > nul
@@ -61,9 +61,9 @@ echo.
 echo ====================================================
 echo   SUCCESS! Design Automation Portal Ready:
 echo   - Executable:       Design_Automation_Portal.exe
-echo   - Version:          Alpha V0.33
+echo   - Version:          Alpha V0.34
 echo   - Dist Folder:      Dist\
-echo   - Vault Zip File:   Dist\Design_Automation_Portal_Alpha_V0.33.zip
+echo   - Vault Zip File:   Dist\Design_Automation_Portal_Alpha_V0.34.zip
 echo   - One-Key Setup:    Dist\Install_DT_Design.bat
 echo   - Uninstaller:      Dist\Uninstall_DT_Design.bat
 echo ====================================================

@@ -19,6 +19,7 @@
     <Compile Include="..\core\VaultService.cs" Link="Core\VaultService.cs" />
     <Compile Include="..\core\VaultConfigManager.cs" Link="Core\VaultConfigManager.cs" />
     <Compile Include="..\core\VaultUpdateService.cs" Link="Core\VaultUpdateService.cs" />
+    <Compile Include="..\core\AppUpdateApplier.cs" Link="Core\AppUpdateApplier.cs" />
     <Compile Include="..\core\OleMessageFilter.cs" Link="Core\OleMessageFilter.cs" />
     <Compile Include="..\utils\BomExporter.cs" Link="Utils\BomExporter.cs" />
     <Compile Include="TestRunner.cs" />

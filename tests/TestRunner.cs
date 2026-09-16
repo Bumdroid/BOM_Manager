@@ -1044,13 +1044,19 @@ namespace BOMManager.Tests
                 failed++;
             }
 
-            // Test 24: VaultUpdateService Self-Update Batch Script Generation
+            // Test 24: VaultUpdateService C# self-update job generation
             try
             {
                 string script = VaultUpdateService.GenerateUpdaterScript(12345, @"C:\Temp\extracted", @"C:\App", "Design_Automation_Portal.exe");
-                if (!script.Contains("12345")) throw new Exception("Script does not contain PID check");
-                if (!script.Contains("Copy-Item") && !script.Contains("xcopy")) throw new Exception("Script does not contain copy command");
-                if (!script.Contains("Start-Process") && !script.Contains("start")) throw new Exception("Script does not restart target exe");
+                if (!script.Contains("WaitPid=12345")) throw new Exception("Job does not contain PID");
+                if (!script.Contains(@"C:\Temp\extracted")) throw new Exception("Job does not contain payload path");
+                if (!script.Contains(@"C:\App")) throw new Exception("Job does not contain target path");
+                if (!script.Contains("Design_Automation_Portal.exe")) throw new Exception("Job does not contain exe name");
+                if (script.IndexOf("powershell", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    script.IndexOf("robocopy", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    throw new Exception("Update job must not launch PowerShell or robocopy");
+                }
 
                 // Check live Vault connection if available
                 try
@@ -1084,7 +1090,7 @@ namespace BOMManager.Tests
                     Console.WriteLine($" [INFO] Live Vault Check Skipped: {vaultEx.Message}");
                 }
 
-                Console.WriteLine(" [PASS] Test 24: 프로세스 종료 대기, 파일 교체 및 신규 버전 자동 재시작 스크립트 생성 검증 성공");
+                Console.WriteLine(" [PASS] Test 24: 프로세스 종료 대기, C# 파일 교체 작업 생성 검증 성공");
                 passed++;
             }
             catch (Exception ex)
@@ -1280,24 +1286,25 @@ namespace BOMManager.Tests
                 var vAlpha031 = VaultUpdateService.ParseVersionString("Alpha V0.31");
                 var vAlpha032 = VaultUpdateService.ParseVersionString("Alpha V0.32");
                 var vAlpha033 = VaultUpdateService.ParseVersionString("Alpha V0.33");
-                var vAlpha033WithHash = VaultUpdateService.ParseVersionString("Alpha V0.33+bccff20422fb256990879bd21e9ae956ecaa6337");
-                var vAlpha033FromAltNotation = new AppVersion(ReleaseStage.Alpha, new Version(0, 33, 0, 0));
+                var vAlpha034 = VaultUpdateService.ParseVersionString("Alpha V0.34");
+                var vAlpha034WithHash = VaultUpdateService.ParseVersionString("Alpha V0.34+bccff20422fb256990879bd21e9ae956ecaa6337");
+                var vAlpha034FromAltNotation = new AppVersion(ReleaseStage.Alpha, new Version(0, 34, 0, 0));
                 var vBeta01 = VaultUpdateService.ParseVersionString("Beta V0.1");
                 var vRelease10 = VaultUpdateService.ParseVersionString("V1.0");
 
-                if (vAlpha01 == null || vAlpha02 == null || vAlpha03 == null || vAlpha031 == null || vAlpha032 == null || vAlpha033 == null || vAlpha033WithHash == null || vBeta01 == null || vRelease10 == null)
+                if (vAlpha01 == null || vAlpha02 == null || vAlpha03 == null || vAlpha031 == null || vAlpha032 == null || vAlpha033 == null || vAlpha034 == null || vAlpha034WithHash == null || vBeta01 == null || vRelease10 == null)
                 {
                     throw new Exception("Version string parsing failed for one or more test versions.");
                 }
 
-                if (vAlpha033WithHash.DisplayString != "Alpha V0.33")
+                if (vAlpha034WithHash.DisplayString != "Alpha V0.34")
                 {
-                    throw new Exception($"InformationalVersion commit hash strip failed: {vAlpha033WithHash.DisplayString}");
+                    throw new Exception($"InformationalVersion commit hash strip failed: {vAlpha034WithHash.DisplayString}");
                 }
 
-                if (!vAlpha033.Equals(vAlpha033FromAltNotation))
+                if (!vAlpha034.Equals(vAlpha034FromAltNotation))
                 {
-                    throw new Exception("Equivalence between 0.33 and 0.33.0.0 failed");
+                    throw new Exception("Equivalence between 0.34 and 0.34.0.0 failed");
                 }
 
                 if (!(vAlpha01 < vAlpha02)) throw new Exception($"Expected Alpha V0.1 < Alpha V0.2, but got {vAlpha01} vs {vAlpha02}");
@@ -1305,7 +1312,8 @@ namespace BOMManager.Tests
                 if (!(vAlpha03 < vAlpha031)) throw new Exception($"Expected Alpha V0.3 < Alpha V0.31, but got {vAlpha03} vs {vAlpha031}");
                 if (!(vAlpha031 < vAlpha032)) throw new Exception($"Expected Alpha V0.31 < Alpha V0.32, but got {vAlpha031} vs {vAlpha032}");
                 if (!(vAlpha032 < vAlpha033)) throw new Exception($"Expected Alpha V0.32 < Alpha V0.33, but got {vAlpha032} vs {vAlpha033}");
-                if (!(vAlpha033 < vBeta01)) throw new Exception($"Expected Alpha V0.33 < Beta V0.1, but got {vAlpha033} vs {vBeta01}");
+                if (!(vAlpha033 < vAlpha034)) throw new Exception($"Expected Alpha V0.33 < Alpha V0.34, but got {vAlpha033} vs {vAlpha034}");
+                if (!(vAlpha034 < vBeta01)) throw new Exception($"Expected Alpha V0.34 < Beta V0.1, but got {vAlpha034} vs {vBeta01}");
                 if (!(vBeta01 < vRelease10)) throw new Exception($"Expected Beta V0.1 < V1.0, but got {vBeta01} vs {vRelease10}");
 
                 // 2. 파일명에서 버전 추출
@@ -1315,7 +1323,8 @@ namespace BOMManager.Tests
                 var extracted031 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.31.zip");
                 var extracted032 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.32.zip");
                 var extracted033 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.33.zip");
-                var extracted033WithHash = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.33+git12345.zip");
+                var extracted034 = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.34.zip");
+                var extracted034WithHash = VaultUpdateService.ExtractAppVersion("Design_Automation_Portal_Alpha_V0.34+git12345.zip");
                 var extractedLegacy = VaultUpdateService.ExtractAppVersion("BOM_Manager_Alpha_V0.1.zip");
 
                 if (extracted01 == null || extracted01.DisplayString != "Alpha V0.1") throw new Exception($"Extracted {extracted01?.DisplayString} != Alpha V0.1");
@@ -1324,7 +1333,8 @@ namespace BOMManager.Tests
                 if (extracted031 == null || extracted031.DisplayString != "Alpha V0.31") throw new Exception($"Extracted {extracted031?.DisplayString} != Alpha V0.31");
                 if (extracted032 == null || extracted032.DisplayString != "Alpha V0.32") throw new Exception($"Extracted {extracted032?.DisplayString} != Alpha V0.32");
                 if (extracted033 == null || extracted033.DisplayString != "Alpha V0.33") throw new Exception($"Extracted {extracted033?.DisplayString} != Alpha V0.33");
-                if (extracted033WithHash == null || extracted033WithHash.DisplayString != "Alpha V0.33") throw new Exception($"Extracted {extracted033WithHash?.DisplayString} != Alpha V0.33");
+                if (extracted034 == null || extracted034.DisplayString != "Alpha V0.34") throw new Exception($"Extracted {extracted034?.DisplayString} != Alpha V0.34");
+                if (extracted034WithHash == null || extracted034WithHash.DisplayString != "Alpha V0.34") throw new Exception($"Extracted {extracted034WithHash?.DisplayString} != Alpha V0.34");
                 if (extractedLegacy == null || extractedLegacy.DisplayString != "Alpha V0.1") throw new Exception($"Extracted {extractedLegacy?.DisplayString} != Alpha V0.1");
 
                 // 3. 최신 후보 선출 검증
@@ -1336,41 +1346,73 @@ namespace BOMManager.Tests
                     "Design_Automation_Portal_Alpha_V0.3.zip",
                     "Design_Automation_Portal_Alpha_V0.31.zip",
                     "Design_Automation_Portal_Alpha_V0.32.zip",
-                    "Design_Automation_Portal_Alpha_V0.33.zip"
+                    "Design_Automation_Portal_Alpha_V0.33.zip",
+                    "Design_Automation_Portal_Alpha_V0.34.zip"
                 };
 
-                // 현재 버전이 Alpha V0.32일 때 -> Alpha V0.33이 선출되어야 함
-                var candidateFor032 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha032);
-                if (candidateFor032 == null || candidateFor032.Version.DisplayString != "Alpha V0.33")
-                {
-                    throw new Exception($"Expected update candidate Alpha V0.33 for current version Alpha V0.32, got {candidateFor032?.Version.DisplayString}");
-                }
-
-                // 현재 버전이 Alpha V0.33일 때 -> 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
+                // 현재 버전이 Alpha V0.33일 때 -> Alpha V0.34가 선출되어야 함
                 var candidateFor033 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha033);
-                if (candidateFor033 != null)
+                if (candidateFor033 == null || candidateFor033.Version.DisplayString != "Alpha V0.34")
                 {
-                    throw new Exception($"Expected NO update candidate for current version Alpha V0.33, but got {candidateFor033.Version.DisplayString}");
+                    throw new Exception($"Expected update candidate Alpha V0.34 for current version Alpha V0.33, got {candidateFor033?.Version.DisplayString}");
                 }
 
-                // 현재 버전이 0.33.0.0일 때도 -> Alpha V0.33과 완벽 일치하여 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
-                var candidateFor033Alt = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, new AppVersion(ReleaseStage.Alpha, new Version(0, 33, 0, 0)));
-                if (candidateFor033Alt != null)
+                // 현재 버전이 Alpha V0.34일 때 -> 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
+                var candidateFor034 = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, vAlpha034);
+                if (candidateFor034 != null)
                 {
-                    throw new Exception($"Expected NO update candidate for current version 0.33.0.0 against Alpha V0.33.zip, but got {candidateFor033Alt.Version.DisplayString}");
+                    throw new Exception($"Expected NO update candidate for current version Alpha V0.34, but got {candidateFor034.Version.DisplayString}");
                 }
 
-                // 4. 파워쉘 자가 교체 스크립트 생성 검증 (한글 경로 및 괄호 포함)
+                // 현재 버전이 0.34.0.0일 때도 -> Alpha V0.34과 완벽 일치하여 더 이상 업데이트 후보가 없어야 함 (무한 반복 방지)
+                var candidateFor034Alt = VaultUpdateService.FindLatestUpdateCandidate(filesInVault, new AppVersion(ReleaseStage.Alpha, new Version(0, 34, 0, 0)));
+                if (candidateFor034Alt != null)
+                {
+                    throw new Exception($"Expected NO update candidate for current version 0.34.0.0 against Alpha V0.34.zip, but got {candidateFor034Alt.Version.DisplayString}");
+                }
+
+                // 4. C# 자가 교체 작업 생성 검증 (한글 경로 및 괄호 포함)
                 string testExtracted = @"C:\Users\이두규(IeeDuKyu)\AppData\Local\Temp\BOM_Manager_Update\extracted";
                 string testTarget = @"C:\ISC_DT_Automation";
                 string script = VaultUpdateService.GenerateUpdaterPs1Script(9999, testExtracted, testTarget, "Design_Automation_Portal.exe");
 
-                if (!script.Contains("robocopy") || !script.Contains("$pidToWait = 9999") || !script.Contains("이두규(IeeDuKyu)"))
+                if (!script.Contains("WaitPid=9999") || !script.Contains("이두규(IeeDuKyu)") || !script.Contains(testTarget))
                 {
-                    throw new Exception("Generated updater script is missing required parameters or robocopy logic.");
+                    throw new Exception("Generated update job is missing required parameters.");
+                }
+                if (script.IndexOf("powershell", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    script.IndexOf("robocopy", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    throw new Exception("Update job must not launch PowerShell or robocopy");
                 }
 
-                Console.WriteLine(" [PASS] Test 27: Vault 자동 업데이트 버전 비교(Alpha V0.3 < V0.33), 무한반복 방지 및 파워쉘 스크립트 생성 검증 성공");
+                // 5. 패키지 파일만 복사하고 대상 폴더 전체 읽기전용 해제를 하지 않는지 검증
+                string fixtureRoot = Path.Combine(Path.GetTempPath(), "DAP_UpdateTest_" + Guid.NewGuid().ToString("N"));
+                string payloadDir = Path.Combine(fixtureRoot, "payload", "이두규(IeeDuKyu)");
+                string destDir = Path.Combine(fixtureRoot, "dest");
+                Directory.CreateDirectory(Path.Combine(payloadDir, "resources"));
+                Directory.CreateDirectory(destDir);
+                File.WriteAllText(Path.Combine(payloadDir, "Design_Automation_Portal.exe"), "new-exe");
+                File.WriteAllText(Path.Combine(payloadDir, "resources", "app.ico"), "new-ico");
+                File.WriteAllText(Path.Combine(payloadDir, "ignore-me.zip"), "zip");
+                string untouched = Path.Combine(destDir, "keep_me.txt");
+                File.WriteAllText(untouched, "keep");
+                string readonlyDest = Path.Combine(destDir, "Design_Automation_Portal.exe");
+                File.WriteAllText(readonlyDest, "old-exe");
+                File.SetAttributes(readonlyDest, FileAttributes.ReadOnly);
+                File.WriteAllText(Path.Combine(destDir, "stray_decoy.doc"), "decoy");
+
+                int copied = AppUpdateApplier.ApplyPayloadFiles(payloadDir, destDir);
+                if (copied != 2) throw new Exception($"Expected 2 payload files copied, got {copied}");
+                if (File.ReadAllText(readonlyDest) != "new-exe") throw new Exception("Readonly exe was not replaced from payload");
+                if (!File.Exists(Path.Combine(destDir, "resources", "app.ico"))) throw new Exception("Nested payload file was not copied");
+                if (File.Exists(Path.Combine(destDir, "ignore-me.zip"))) throw new Exception("Zip payload files must not be copied");
+                if (File.ReadAllText(untouched) != "keep") throw new Exception("Files not in the payload must be left untouched");
+                if (File.ReadAllText(Path.Combine(destDir, "stray_decoy.doc")) != "decoy") throw new Exception("Unrelated target files must not be modified");
+
+                try { Directory.Delete(fixtureRoot, true); } catch { }
+
+                Console.WriteLine(" [PASS] Test 27: Vault 자동 업데이트 버전 비교(Alpha V0.3 < V0.34), 무한반복 방지 및 C# 파일 교체 검증 성공");
                 passed++;
             }
             catch (Exception ex)

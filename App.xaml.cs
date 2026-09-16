@@ -133,6 +133,18 @@ namespace BOMManager
             catch { }
             Log("BOM Manager WPF OnStartup 시작 (.exe Standalone)");
 
+            if (AppUpdateApplier.TryRunFromArgs(e.Args))
+            {
+                Log("C# 자가 업데이트 작업을 완료하고 프로세스를 종료합니다.");
+                Shutdown();
+                return;
+            }
+
+            StartMainApplication(e);
+        }
+
+        private void StartMainApplication(StartupEventArgs e)
+        {
             bool createdNew;
             try
             {
@@ -188,7 +200,7 @@ namespace BOMManager
                         bool? updateResult = updateDlg.ShowDialog();
                         if (updateResult == true && updateDlg.UpdateInitiated)
                         {
-                            Log("자가 업데이트 프로세스를 실행하고 현재 인스턴스를 종료합니다.");
+                            Log("C# 자가 업데이트 프로세스를 실행하고 현재 인스턴스를 종료합니다.");
                             if (!string.IsNullOrEmpty(updateDlg.UpdaterScriptPath))
                             {
                                 VaultUpdateService.LaunchUpdater(updateDlg.UpdaterScriptPath);

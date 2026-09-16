@@ -73,7 +73,7 @@ namespace BOMManager.Core
         }
 
         /// <summary>
-        /// 0.31/0.32/0.33과 0.3.1/0.3.2/0.3.3 등 표기 방식의 차이로 발생할 수 있는 동등성을 판별합니다.
+        /// 0.31/0.32/0.33/0.34와 0.3.1/0.3.2/0.3.3/0.3.4 등 표기 방식의 차이로 발생할 수 있는 동등성을 판별합니다.
         /// </summary>
         public bool IsEquivalentTo(AppVersion? other)
         {
@@ -81,7 +81,7 @@ namespace BOMManager.Core
             if (Stage != other.Stage) return false;
             if (NumericVersion.Equals(other.NumericVersion)) return true;
 
-            // 0.31 / 0.32 / 0.33 표기 호환성 보장
+            // 0.31 / 0.32 / 0.33 / 0.34 표기 호환성 보장
             if (NumericVersion.Major == other.NumericVersion.Major)
             {
                 if (NumericVersion.Minor == 31 && other.NumericVersion.Minor == 3 && other.NumericVersion.Build == 1) return true;
@@ -90,6 +90,8 @@ namespace BOMManager.Core
                 if (NumericVersion.Minor == 3 && NumericVersion.Build == 2 && other.NumericVersion.Minor == 32) return true;
                 if (NumericVersion.Minor == 33 && other.NumericVersion.Minor == 3 && other.NumericVersion.Build == 3) return true;
                 if (NumericVersion.Minor == 3 && NumericVersion.Build == 3 && other.NumericVersion.Minor == 33) return true;
+                if (NumericVersion.Minor == 34 && other.NumericVersion.Minor == 3 && other.NumericVersion.Build == 4) return true;
+                if (NumericVersion.Minor == 3 && NumericVersion.Build == 4 && other.NumericVersion.Minor == 34) return true;
             }
             return false;
         }
@@ -176,7 +178,7 @@ namespace BOMManager.Core
         private static AppVersion? _currentAppVersion;
 
         /// <summary>
-        /// 현재 실행 중인 어셈블리의 버전 정보를 동적으로 추출하여 반환합니다. (기본값: Alpha V0.33)
+        /// 현재 실행 중인 어셈블리의 버전 정보를 동적으로 추출하여 반환합니다. (기본값: Alpha V0.34)
         /// </summary>
         public static AppVersion CurrentAppVersion
         {
@@ -218,7 +220,7 @@ namespace BOMManager.Core
                 }
             }
             catch { }
-            return new AppVersion(ReleaseStage.Alpha, 0, 33, 0, 0);
+            return new AppVersion(ReleaseStage.Alpha, 0, 34, 0, 0);
         }
 
         /// <summary>
@@ -468,8 +470,8 @@ namespace BOMManager.Core
         }
 
         /// <summary>
-        /// 최신 배포 zip 파일을 Vault에서 다운로드하고 압축을 해제한 후 자가 교체 스크립트를 생성합니다.
-        /// (실제 교체 스크립트 실행은 사용자가 확인 버튼을 눌러 앱이 종료될 때 수행됩니다.)
+        /// 최신 배포 zip 파일을 Vault에서 다운로드하고 압축을 해제한 후 C# 자가 교체 작업을 준비합니다.
+        /// (실제 파일 교체는 사용자가 확인 버튼을 눌러 앱이 종료될 때 TEMP 작업 프로세스가 수행합니다.)
         /// </summary>
         public static bool DownloadAndApplyUpdate(
             string server,
@@ -562,26 +564,20 @@ namespace BOMManager.Core
                     // 3. ZIP 압축 해제
                     ZipFile.ExtractToDirectory(resolvedZip, extractedDir);
 
-                    // 4. 자가 교체 파워쉘/배치 스크립트 생성
-                    progressCallback?.Invoke(90, "자가 교체 스크립트 준비 중...");
+                    progressCallback?.Invoke(90, "업데이트 작업 준비 중...");
                     int currentPid = Process.GetCurrentProcess().Id;
                     string targetAppDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
-                    string ps1ScriptPath = Path.Combine(tempDir, "updater.ps1");
-                    string batScriptPath = Path.Combine(tempDir, "updater.bat");
-
                     string currentExeName = Path.GetFileName(Process.GetCurrentProcess().MainModule?.FileName ?? "Design_Automation_Portal.exe");
                     if (string.IsNullOrWhiteSpace(currentExeName) || currentExeName.EndsWith(".vshost.exe", StringComparison.OrdinalIgnoreCase))
                     {
                         currentExeName = "Design_Automation_Portal.exe";
                     }
 
-                    string ps1Content = GenerateUpdaterPs1Script(currentPid, extractedDir, targetAppDir, currentExeName);
-                    File.WriteAllText(ps1ScriptPath, ps1Content, new System.Text.UTF8Encoding(true));
+                    string payloadRoot = AppUpdateApplier.ResolvePayloadRoot(extractedDir, currentExeName);
+                    string jobPath = Path.Combine(tempDir, AppUpdateApplier.JobFileName);
+                    AppUpdateApplier.WriteJob(jobPath, currentPid, payloadRoot, targetAppDir, currentExeName);
 
-                    string batContent = "@echo off\r\nchcp 65001 > nul\r\npowershell -NoProfile -ExecutionPolicy Bypass -File \"%~dp0updater.ps1\"\r\n";
-                    File.WriteAllText(batScriptPath, batContent, System.Text.Encoding.Default);
-
-                    updaterScriptPath = ps1ScriptPath;
+                    updaterScriptPath = jobPath;
                     progressCallback?.Invoke(100, "업데이트 준비가 완료되었습니다.");
                     return true;
                 }
@@ -602,41 +598,15 @@ namespace BOMManager.Core
         }
 
         /// <summary>
-        /// 자가 교체 스크립트를 백그라운드 독립 프로세스로 실행합니다.
+        /// TEMP에 복사한 작업 프로세스로 패키지 파일 교체를 시작합니다. PowerShell/cmd를 사용하지 않습니다.
         /// </summary>
-        public static bool LaunchUpdater(string updaterScriptPath)
+        public static bool LaunchUpdater(string updaterJobPath)
         {
-            if (string.IsNullOrWhiteSpace(updaterScriptPath) || !File.Exists(updaterScriptPath)) return false;
             try
             {
-                string ext = Path.GetExtension(updaterScriptPath).ToLowerInvariant();
-                ProcessStartInfo psi;
-                if (ext == ".ps1")
-                {
-                    psi = new ProcessStartInfo
-                    {
-                        FileName = "powershell.exe",
-                        Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{updaterScriptPath}\"",
-                        WorkingDirectory = Path.GetDirectoryName(updaterScriptPath) ?? AppDomain.CurrentDomain.BaseDirectory,
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    };
-                }
-                else
-                {
-                    psi = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c \"\"{updaterScriptPath}\"\"",
-                        WorkingDirectory = Path.GetDirectoryName(updaterScriptPath) ?? AppDomain.CurrentDomain.BaseDirectory,
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    };
-                }
-                Process.Start(psi);
-                return true;
+                string currentExe = Process.GetCurrentProcess().MainModule?.FileName
+                    ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Design_Automation_Portal.exe");
+                return AppUpdateApplier.LaunchWorker(updaterJobPath, currentExe);
             }
             catch
             {
@@ -645,91 +615,15 @@ namespace BOMManager.Core
         }
 
         /// <summary>
-        /// 실행 중인 프로세스가 종료되기를 기다린 후 새 파일로 덮어쓰고 재실행하는 PowerShell 교체 스크립트를 생성합니다.
-        /// 한글 경로, 괄호 (), 권한, 파일 잠금 문제를 robocopy 및 안전한 재시도 루프로 완벽하게 해결합니다.
+        /// 업데이트 작업 파일 내용을 생성합니다. (테스트 및 이전 호출부 호환)
         /// </summary>
         public static string GenerateUpdaterPs1Script(int currentPid, string extractedDir, string targetAppDir, string exeName)
         {
-            string safeExtracted = extractedDir.TrimEnd('\\', '/');
-            string safeTarget = targetAppDir.TrimEnd('\\', '/');
-
-            return $@"# Design Automation Portal Self-Updater
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-$pidToWait = {currentPid}
-$srcDir = '{safeExtracted}'
-$targetDir = '{safeTarget}'
-$exe = '{exeName}'
-
-Write-Host ('[1/4] Waiting for calling process (PID: ' + $pidToWait + ') to exit...')
-$waitCount = 0
-while ((Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) -and ($waitCount -lt 150)) {{
-    Start-Sleep -Milliseconds 200
-    $waitCount++
-}}
-Start-Sleep -Milliseconds 600
-
-# Terminate any duplicate lingering instances in target folder
-try {{
-    $procs = Get-Process -Name 'Design_Automation_Portal' -ErrorAction SilentlyContinue
-    foreach ($p in $procs) {{
-        try {{
-            if ($p.Id -ne $PID -and $p.Id -ne $pidToWait) {{
-                Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-            }}
-        }} catch {{ }}
-    }}
-}} catch {{ }}
-
-# Locate payload root directory containing exe
-$actualSrc = $srcDir
-if (Test-Path -LiteralPath $srcDir) {{
-    $foundExe = Get-ChildItem -LiteralPath $srcDir -Filter $exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($foundExe) {{
-        $actualSrc = $foundExe.DirectoryName
-    }}
-}}
-
-Write-Host ('[2/4] Clearing read-only attributes on ' + $targetDir + '...')
-if (Test-Path -LiteralPath $targetDir) {{
-    Get-ChildItem -LiteralPath $targetDir -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {{
-        if ($_.IsReadOnly) {{ $_.IsReadOnly = $false }}
-    }}
-}}
-
-Write-Host ('[3/4] Copying updated files from ' + $actualSrc + ' to ' + $targetDir + '...')
-$copyDone = $false
-for ($retry = 0; $retry -lt 15; $retry++) {{
-    try {{
-        & robocopy ""$actualSrc"" ""$targetDir"" /E /IS /IT /NP /R:2 /W:1 *>$null
-        if ($LASTEXITCODE -lt 8) {{
-            $copyDone = $true
-            break
-        }}
-    }} catch {{ }}
-
-    try {{
-        Get-ChildItem -LiteralPath $actualSrc -Force | ForEach-Object {{
-            Copy-Item -LiteralPath $_.FullName -Destination $targetDir -Recurse -Force -ErrorAction Stop
-        }}
-        $copyDone = $true
-        break
-    }} catch {{
-        Start-Sleep -Milliseconds 500
-    }}
-}}
-
-Write-Host ('[4/4] Launching updated application...')
-$exePath = Join-Path $targetDir $exe
-if (Test-Path -LiteralPath $exePath) {{
-    Start-Process -FilePath $exePath -WorkingDirectory $targetDir
-}}
-";
+            return AppUpdateApplier.BuildJobText(currentPid, extractedDir, targetAppDir, exeName);
         }
 
         /// <summary>
-        /// 이전 버전 호환용 레거시 스크립트 생성기
+        /// 이전 버전 호환용 작업 파일 생성기
         /// </summary>
         public static string GenerateUpdaterScript(int currentPid, string extractedDir, string targetAppDir, string exeName)
         {
